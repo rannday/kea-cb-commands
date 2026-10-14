@@ -1,0 +1,179 @@
+"""Run hook validation, commands, unload/reload and shutdown on real Kea."""
+
+# SPDX-License-Identifier: MPL-2.0
+import argparse
+import base64
+import json
+import os
+import secrets
+import socket
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+
+from control import command
+
+DIAGNOSTIC = "db-commands-diagnostic"
+
+
+def require_success(response):
+    if response["result"] != 0:
+        raise AssertionError(response)
+    return response.get("arguments")
+
+
+def run_case(server, hook, directory, multithreading):
+    password = secrets.token_urlsafe(24)
+    credentials_path = directory / "test-credentials"
+    credentials_path.write_text(f"hook-test:{password}", encoding="ascii")
+    authorization = "Basic " + base64.b64encode(
+        f"hook-test:{password}".encode("ascii")
+    ).decode("ascii")
+    # Let the OS select a free loopback port. A bind race remains possible between
+    # closing this reservation and Kea starting; a collision fails the test.
+    with socket.socket() as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        port = reservation.getsockname()[1]
+
+    def send(name, arguments=None):
+        return command(port, name, arguments, authorization=authorization)
+
+    config_path = directory / "kea.json"
+    config = {
+        "Dhcp4": {
+            "interfaces-config": {"interfaces": []},
+            "lease-database": {"type": "memfile", "persist": False},
+            "valid-lifetime": 600,
+            "subnet4": [],
+            "control-sockets": [
+                {
+                    "socket-type": "http",
+                    "socket-address": "127.0.0.1",
+                    "socket-port": port,
+                    "authentication": {
+                        "type": "basic",
+                        "realm": "hook-lifecycle-test",
+                        "clients": [{"password-file": str(credentials_path)}],
+                    },
+                }
+            ],
+            "multi-threading": {"enable-multi-threading": multithreading},
+            "hooks-libraries": [{"library": str(hook)}],
+            "loggers": [
+                {
+                    "name": "kea-dhcp4",
+                    "severity": "INFO",
+                    "output-options": [{"output": "stdout"}],
+                }
+            ],
+        }
+    }
+
+    def save():
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    save()
+    environment = os.environ.copy()
+    environment.update(
+        KEA_PIDFILE_DIR=str(directory),
+        KEA_LOCKFILE_DIR=str(directory),
+        KEA_HOOKS_PATH=str(hook.parent),
+    )
+    log_path = directory / "server.log"
+    server_command = [str(server)]
+    process = None
+    try:
+        with log_path.open("w", encoding="utf-8") as log:
+            subprocess.run(
+                [*server_command, "-T", str(config_path)],
+                check=True,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env=environment,
+                cwd=directory,
+                timeout=20,
+            )
+            process = subprocess.Popen(
+                [*server_command, "-d", "-c", str(config_path)],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env=environment,
+                cwd=directory,
+            )
+            deadline = time.monotonic() + 15
+            while True:
+                if process.poll() is not None:
+                    raise AssertionError("Kea exited during startup")
+                try:
+                    names = require_success(send("list-commands"))
+                    break
+                except (OSError, ValueError):
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.1)
+            if DIAGNOSTIC not in names:
+                raise AssertionError("Diagnostic command was not registered")
+            for arguments in (None, {}):
+                result = require_success(send(DIAGNOSTIC, arguments))
+                if (
+                    result["configuration-backend-pool-accessible"] is not True
+                    or result["database-connectivity-tested"] is not False
+                    or result["mutations-supported"] is not False
+                    or result["kea-hooks-version"] not in (30201, 30004)
+                ):
+                    raise AssertionError(result)
+            if send(DIAGNOSTIC, {"unexpected": True})["result"] != 1:
+                raise AssertionError("Invalid diagnostic arguments were accepted")
+
+            config["Dhcp4"]["hooks-libraries"] = []
+            save()
+            require_success(send("config-reload"))
+            if DIAGNOSTIC in require_success(send("list-commands")):
+                raise AssertionError("Command remained registered after unload")
+            if send(DIAGNOSTIC)["result"] != 2:
+                raise AssertionError("Unloaded command did not become unsupported")
+            config["Dhcp4"]["hooks-libraries"] = [{"library": str(hook)}]
+            save()
+            require_success(send("config-reload"))
+            require_success(send(DIAGNOSTIC))
+            require_success(send("shutdown"))
+            if process.wait(timeout=10) != 0:
+                raise AssertionError("Kea shutdown failed")
+    except Exception:
+        print(log_path.read_text(encoding="utf-8", errors="replace"))
+        raise
+    finally:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--server", required=True, type=Path)
+    parser.add_argument("--hook", required=True, type=Path)
+    parser.add_argument("--work-dir", required=True, type=Path)
+    args = parser.parse_args()
+    args.work_dir.mkdir(parents=True, exist_ok=True)
+    for multithreading in (False, True):
+        with tempfile.TemporaryDirectory(
+            prefix="t", dir=args.work_dir.resolve()
+        ) as directory:
+            run_case(
+                args.server.resolve(),
+                args.hook.resolve(),
+                Path(directory),
+                multithreading,
+            )
+    print(
+        "PASS: validation, commands, reload, unload, and shutdown in both threading modes"
+    )
+
+
+if __name__ == "__main__":
+    main()
