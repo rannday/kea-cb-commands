@@ -35,10 +35,10 @@ The prototype accepts DHCPv4 only. The design includes DHCPv6 as a later milesto
 ## Quick start
 
 Use Linux or Debian WSL2. Install prerequisites and build shared-library Kea with
-the exact instructions in [development](docs/development.md). Do not link against
+the exact instructions in [reproducible builds](docs/reproducible-builds.md). Do not link against
 Windows/MSYS2 Kea libraries or a static copy of Kea.
 
-With a matching Kea installation at an isolated prefix:
+For a lifecycle smoke test with a matching Kea installation at an isolated prefix:
 
 ```bash
 export KEA_PREFIX="$PWD/.local/kea/3.2.1"
@@ -50,6 +50,10 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
 cmake --build build --parallel 2
 ctest --test-dir build --output-on-failure
 ```
+
+For the full six-test acceptance gate, use `scripts/integration.py` as documented
+in the build guide. It requires both databases and isolated networking and fails
+if any expected integration test is skipped.
 
 The output is `build/libdhcp_db_commands.so`. To load it in a test DHCPv4
 configuration, add its **absolute Linux path** to the existing `Dhcp4` object:
@@ -82,6 +86,7 @@ error. The command returns no credentials or configuration data.
 - [Feasibility and upstream evidence](docs/feasibility.md)
 - [Architecture and implementation roadmap](docs/architecture.md)
 - [Development, prerequisites, and verification](docs/development.md)
+- [Verified-source builds, pinned quality tools, CI and artifact checks](docs/reproducible-builds.md)
 - [PostgreSQL setup and integration tests](docs/postgresql.md)
 - [Subnet and pool mutation contract and activation](docs/commands.md)
 - [Verified backend selection, selectors and recovery](docs/backend-behavior.md)
@@ -89,7 +94,8 @@ error. The command returns no credentials or configuration data.
 - `src/diagnostic.cc`: hook entry points, diagnostic, subnet list and set commands
 - [Pool persistence and isolated DHCP packet tests](docs/pools.md)
 - `tests/`: transport, real-Kea lifecycle, isolated PostgreSQL/MySQL and DHCP tests
-- `.github/workflows/ci.yml`: Linux build and lifecycle matrix, not yet executed
+- `.github/workflows/ci.yml`: Ubuntu 24.04 quality and strict integration gates;
+  CI execution remains unverified
 
 Original code is licensed under [MPL-2.0](LICENSE). This project is independent of
 ISC and does not use proprietary hook source or binaries.

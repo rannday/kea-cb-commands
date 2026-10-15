@@ -1,0 +1,8 @@
+{
+  "version": "3.2.1",
+  "repository": "https://github.com/isc-projects/kea",
+  "tag": "Kea-3.2.1",
+  "commit": "1737462bc79276e3269304ea8cd3d1c03400e30d",
+  "url": "https://codeload.github.com/isc-projects/kea/tar.gz/1737462bc79276e3269304ea8cd3d1c03400e30d",
+  "sha256": "2aebb52859cc402ae20004f54574714045fc6366825df1b09b7845130f9f798b"
+}

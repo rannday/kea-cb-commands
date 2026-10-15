@@ -1,4 +1,5 @@
 /build*/
+/build*.log
 /.local/
 /.upstream/
 /.ruff_cache/

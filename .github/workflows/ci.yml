@@ -1,4 +1,5 @@
-name: Linux Kea hook
+name: Linux Kea acceptance
+
 on:
   push:
   pull_request:
@@ -8,46 +9,91 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  quality:
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        kea: ['3.2.1', '3.0.4']
-    env:
-      KEA_VERSION: ${{ matrix.kea }}
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install isolated quality tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y python3-venv
+          python3 -m venv build-tools
+          build-tools/bin/pip install --require-hashes --only-binary=:all: -r scripts/requirements-quality.txt
+          echo "$GITHUB_WORKSPACE/build-tools/bin" >> "$GITHUB_PATH"
+      - name: Formatting, lint, documentation and whitespace
+        run: python3 scripts/quality.py
+      - name: Python unit tests
+        run: |
+          python3 -B -m unittest discover -s tests -p 'test_*.py' -v
+          python3 -B -m unittest discover -s scripts -p 'test_*.py' -v
+
+  integration:
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - name: Install ephemeral runner prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            build-essential cmake ninja-build pkg-config meson python3 \
-            bison flex curl ca-certificates libboost-dev libboost-system-dev \
-            liblog4cplus-dev libssl-dev libpq-dev default-libmysqlclient-dev
-      - name: Build matching upstream shared Kea
+            build-essential cmake ninja-build pkg-config python3-venv bison flex \
+            ca-certificates libboost-dev libboost-system-dev liblog4cplus-dev \
+            libssl-dev libpq-dev libmariadb-dev libmariadb-dev-compat \
+            postgresql postgresql-client mariadb-server mariadb-client \
+            iproute2 util-linux apparmor binutils
+          python3 -m venv build-tools
+          build-tools/bin/pip install --require-hashes --only-binary=:all: -r scripts/requirements-quality.txt
+          echo "$GITHUB_WORKSPACE/build-tools/bin" >> "$GITHUB_PATH"
+      - name: Permit user namespaces for the test-only unshare executable
         run: |
-          export KEA_PREFIX="$GITHUB_WORKSPACE/.local/kea/$KEA_VERSION"
-          mkdir -p .upstream
-          curl --fail --location --retry 2 \
-            "https://github.com/isc-projects/kea/archive/refs/tags/Kea-$KEA_VERSION.tar.gz" \
-            --output .upstream/kea.tar.gz
-          tar -xzf .upstream/kea.tar.gz -C .upstream
-          meson setup build-kea ".upstream/kea-Kea-$KEA_VERSION" \
-            --prefix="$KEA_PREFIX" --libdir=lib --buildtype=debugoptimized \
-            -Dcpp_std=c++14 -Dcrypto=openssl -Dmysql=enabled \
-            -Dpostgresql=enabled -Dkrb5=disabled -Dnetconf=disabled
-          meson compile -C build-kea -j 2
-          meson install -C build-kea
-          echo "KEA_PREFIX=$KEA_PREFIX" >> "$GITHUB_ENV"
-          echo "PKG_CONFIG_PATH=$KEA_PREFIX/lib/pkgconfig" >> "$GITHUB_ENV"
-          echo "LD_LIBRARY_PATH=$KEA_PREFIX/lib" >> "$GITHUB_ENV"
-          echo "$KEA_PREFIX/sbin" >> "$GITHUB_PATH"
-          echo "$KEA_PREFIX/bin" >> "$GITHUB_PATH"
-      - name: Build and test hook
+          mkdir -p "$RUNNER_TEMP/kea-userns"
+          install -m 755 /usr/bin/unshare "$RUNNER_TEMP/kea-userns/unshare"
+          cat > "$RUNNER_TEMP/kea-userns/profile" <<EOF_PROFILE
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile kea-cb-ci-userns "$RUNNER_TEMP/kea-userns/unshare" flags=(unconfined) {
+            userns,
+          }
+          EOF_PROFILE
+          sudo apparmor_parser -r "$RUNNER_TEMP/kea-userns/profile"
+          echo "$RUNNER_TEMP/kea-userns" >> "$GITHUB_PATH"
+      - name: Build verified upstream Kea 3.2.1 from scratch
+        run: python3 scripts/build_kea.py --work-dir build-upstream --jobs 2 > build-upstream.log 2>&1
+      - name: Build hook with warnings as errors and require every integration test
+        run: python3 scripts/integration.py --kea-prefix build-upstream/install --build-dir build-integration --jobs 2
+      - name: Install and verify the hook artifact
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DKEA_DB_COMMANDS_RUNTIME_TESTS=ON
-          cmake --build build --parallel 2
-          ctest --test-dir build --output-on-failure
-          nm -D --defined-only build/libdhcp_db_commands.so
-          ldd build/libdhcp_db_commands.so
+          cmake --install build-integration --prefix "$PWD/build-stage"
+          python3 scripts/verify_artifact.py \
+            --library build-stage/lib/kea/hooks/libdhcp_db_commands.so \
+            --kea-prefix build-upstream/install --forbid-path "$GITHUB_WORKSPACE"
+          LD_LIBRARY_PATH="$PWD/build-upstream/install/lib" python3 -B tests/smoke.py \
+            --server "$PWD/build-upstream/install/sbin/kea-dhcp4" \
+            --hook "$PWD/build-stage/lib/kea/hooks/libdhcp_db_commands.so" \
+            --work-dir "$PWD/build-staged-lifecycle"
+      - name: Remove test-only AppArmor profile
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/kea-userns/profile"; then
+            sudo apparmor_parser -R "$RUNNER_TEMP/kea-userns/profile"
+          fi
+      - name: Preserve build and test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kea-3.2.1-verification
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            build-upstream.log
+            build-upstream/toolchain.txt
+            build-upstream/config.report
+            build-upstream/build/meson-logs/meson-log.txt
+            build-integration/ctest-results.xml
+            build-integration/Testing/Temporary/LastTest.log

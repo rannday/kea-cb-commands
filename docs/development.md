@@ -1,5 +1,10 @@
 # Development and verification
 
+For the current clean-build procedure, pinned quality tools, strict acceptance
+gate, CI design and artifact checks, start with
+[reproducible builds](reproducible-builds.md). The milestone records below retain
+their historical commands and execution evidence.
+
 ## Recommended environment
 
 Use Debian WSL2 for local Linux builds from Windows, or native Linux for an

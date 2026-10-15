@@ -1,0 +1,4 @@
+# Linux x86_64 wheels; update versions and hashes together.
+meson==1.7.2 --hash=sha256:82c6818dc81743c96de3a458f06175776ebfde4081195ea31ea6971838f25e38
+clang-format==18.1.8 --hash=sha256:2de122b8aa78ba49e326f974131caab2c79f4ae877c227cd4e3e5d82a98d21e5
+ruff==0.11.13 --hash=sha256:4ffbc82d70424b275b089166310448051afdc6e914fdab90e08df66c43bb5ca9

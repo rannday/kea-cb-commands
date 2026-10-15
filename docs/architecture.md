@@ -121,9 +121,9 @@ and do not point tests at a running production server. Normal Kea security check
 remain enabled. The HTTP channel avoids the Unix-socket limitations of Windows
 mounted filesystems; Linux filesystem builds are still preferred for performance.
 
-The GitHub Actions matrix builds each source-assessed Kea release independently,
-builds the hook, and runs CTest. It is a proposed execution path until a real CI
-run succeeds; writing the workflow does not establish compatibility.
+GitHub Actions separates fast quality checks from a clean Kea 3.2.1 build and
+strict six-test integration gate. CI execution remains unverified; writing the
+workflow does not establish compatibility. See [the build guide](reproducible-builds.md).
 
 ## Implementation roadmap
 
@@ -159,22 +159,26 @@ run succeeds; writing the workflow does not establish compatibility.
    one write; external-writer preflight races and commit-boundary uncertainty
    remain explicit limitations. No packet allocation or pull-failure proof is
    claimed. See [the mutation contract](commands.md).
-6. **Milestone 5: basic DHCPv4 pools and real allocation.**
+6. **Milestone 5: basic DHCPv4 pools and real allocation — verified.**
    Optional explicit start/end ranges use native pool construction and subnet
    validation. Omission preserves existing basic pools; an explicit list replaces
    them, including `[]`. The shared SQL tests cover persistence and rollback;
    opt-in namespace tests cover real DORA, lease recording, activation failure,
-   replacement/reload and restart. See [the current verification record](pools.md);
-   no result is claimed before its gate completes.
-7. **Expand by tested object family.** Add deletion, shared networks, options,
+   replacement/reload and restart. All six CTests, including twelve real DORA
+   exchanges, passed. See [the verification record](pools.md).
+7. **Milestone 6: reproducible builds and development quality.** Pin and verify
+   upstream source, build in a fresh prefix, enforce formatting/lint and strict
+   integration gates, and inspect installed shared-library exports/dependencies.
+   See [procedures and execution status](reproducible-builds.md).
+8. **Expand by tested object family.** Add deletion, shared networks, options,
    option definitions, globals, classes, and server associations only as supported
    by exact upstream APIs. Evaluate documented `cb_cmds` compatibility per command.
-8. **Release discipline.** Maintain exact-release build artifacts and regression
+9. **Release discipline.** Maintain exact-release build artifacts and regression
    gates; add packaging only after dependency and ABI constraints are demonstrated.
 
-The recommended next milestone is release hardening of the supported subnet and
-pool contract: reproducible artifacts, documented deployment recovery and scale
-limits. Add another object family only after the existing acceptance gates pass.
+The recommended next milestone is supported-version ABI/install verification and
+recovery/scale testing of the existing subnet and pool contract. Add another
+object family only after the existing acceptance gates pass.
 Establish an explicit deployment policy for coordinating writers before
 production writes; concurrent external writers require stronger upstream
 transaction or locking support.

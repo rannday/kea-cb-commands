@@ -1,5 +1,6 @@
 BasedOnStyle: LLVM
 IndentWidth: 4
-PointerAlignment: Left
-BreakBeforeBraces: Attach
 ColumnLimit: 100
+PointerAlignment: Left
+AllowShortFunctionsOnASingleLine: InlineOnly
+SortIncludes: CaseSensitive

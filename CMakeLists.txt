@@ -61,6 +61,16 @@ set_target_properties(kea_db_commands PROPERTIES
     VISIBILITY_INLINES_HIDDEN YES)
 target_link_libraries(kea_db_commands PRIVATE PkgConfig::KEA)
 target_compile_options(kea_db_commands PRIVATE -Wall -Wextra -Wpedantic)
+option(KEA_DB_COMMANDS_WARNINGS_AS_ERRORS "Treat hook compiler warnings as errors" OFF)
+if(KEA_DB_COMMANDS_WARNINGS_AS_ERRORS)
+    target_compile_options(kea_db_commands PRIVATE -Werror)
+endif()
+# Keep checkout paths out of __FILE__ and debug information. Runtime library
+# discovery is explicit (LD_LIBRARY_PATH or the administrator's loader setup).
+target_compile_options(kea_db_commands PRIVATE
+    "-ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=./build"
+    "-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.")
+set_target_properties(kea_db_commands PROPERTIES SKIP_BUILD_RPATH YES INSTALL_RPATH "")
 target_link_options(kea_db_commands PRIVATE -Wl,-z,defs)
 
 include(GNUInstallDirs)
@@ -69,6 +79,7 @@ install(TARGETS kea_db_commands LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/kea/
 include(CTest)
 if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
     add_test(NAME control_transport
         COMMAND ${Python3_EXECUTABLE} -B -m unittest discover
                 -s ${CMAKE_CURRENT_SOURCE_DIR}/tests -p test_transport.py)
@@ -80,7 +91,8 @@ if(BUILD_TESTING)
                 --server ${KEA_DHCP4_EXECUTABLE}
                 --hook $<TARGET_FILE:kea_db_commands>
                 --work-dir ${CMAKE_CURRENT_BINARY_DIR}/runtime)
-        set_tests_properties(hook_lifecycle PROPERTIES TIMEOUT 90)
+        set_tests_properties(hook_lifecycle PROPERTIES TIMEOUT 90
+            ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
     endif()
     option(KEA_DB_COMMANDS_POSTGRESQL_TESTS "Run isolated real PostgreSQL integration" OFF)
     option(KEA_DB_COMMANDS_DHCP_TESTS "Run real DHCP in disposable Linux namespaces" OFF)
