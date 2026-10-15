@@ -464,3 +464,57 @@ interface. Oracle MySQL, Kea 3.0.4 SQL writes, installed packaging and productio
 load remain unverified. A next milestone should add a narrow pool contract and
 real DHCP allocation plus activation-failure tests, retaining these integrity
 boundaries and an explicit policy for writer coordination.
+
+## Milestone 5 pool and packet verification
+
+The implementation extends `cb-subnet4-set` with basic IPv4 pools. The
+[command contract](commands.md) defines omission, replacement and validation;
+[pinned upstream evidence and current results](pools.md) distinguish source
+review from executed tests. Historical milestone records above remain unchanged.
+The final Milestone 5 run passed all six CTest cases with zero failures or skips
+in 302.73 seconds. A clean CMake build passed with warnings treated as errors;
+direct Python discovery passed six tests, all eight Python modules parsed, and
+documentation links and whitespace checks passed. Ruff and clang-format are
+unavailable and were not run. The full upstream Kea test suite was not run.
+All five fixture work directories were empty after cleanup.
+
+Enable the existing PostgreSQL and/or MySQL integration options and their
+matching prerequisite paths, then add:
+
+```sh
+PKG_CONFIG_PATH="$PWD/build-kea-3.2.1/meson-uninstalled" \
+  cmake -S . -B build-native -DCMAKE_CXX_FLAGS=-Werror \
+  -DKEA_DB_COMMANDS_DHCP_TESTS=ON
+cmake --build build-native --parallel 2
+ctest --test-dir build-native --output-on-failure
+python3 -B -m unittest discover -s tests -p 'test_*.py'
+```
+
+`postgresql_read` and `mysql_read` include the shared pool mutation suite.
+The additional `postgresql_dhcp` and `mysql_dhcp` cases run each backend's
+disposable fixture with packet checks, with threading disabled and enabled.
+The packet option requires the corresponding SQL option and native backend
+prerequisites. It does not enable DHCP on host interfaces.
+
+Packet tests require Linux `unshare`, user/network namespace support and `ip`.
+They also require the matching `kea-lfc` executable, selected with
+`-DKEA_LFC_EXECUTABLE=/absolute/path/to/kea-lfc`. For an uninstalled upstream
+build, build `src/bin/lfc/kea-lfc` and select that executable. The fixture sets
+Kea's data directory to its private temporary directory without host installation.
+The runner creates a disposable unprivileged user/network namespace and brings
+up only its loopback interface. It must fail closed if isolation is missing.
+Kea binds loopback UDP on testing ports 1067/1068; a loopback relay sends real
+DHCP packets. No physical/shared interface, Docker, persistent host networking,
+or production server is used. Where namespace creation requires host privileges,
+obtain explicit approval before running; never bypass isolation or run the
+fixture against a host interface. An unavailable prerequisite is a skipped
+check, not a pass.
+
+The tests inspect native SQL reconstruction, active `config-get`, OFFER/ACK
+contents and Kea's persisted memfile lease separately. Empty-pool checks require
+no offer. Pool replacement is followed by explicit reload, and actual daemon
+restart is tested. An intentionally invalid runtime activation must leave the
+SQL write intact. Recovery consists of correcting activation prerequisites and
+explicitly activating again; the hook performs no automatic rollback. Temporary
+servers, private database clusters, credentials, leases and namespace resources
+are removed by the fixture cleanup paths.

@@ -152,8 +152,9 @@ audit, timestamp and activation observations also have real SQL runtime tests.
 - `src/lib/dhcpsrv/subnet.cc:76` and `:242–273` enforce constructor ID, family
   and timer constraints. Construction is not complete server configuration
   validation. The hook validates exact fields, numeric bounds and canonical
-  network address before construction. It creates no pools/options or inherited
-  stored settings.
+  network address before construction. Optional basic pools use native
+  `Pool4::create` and `Subnet4::addPool`; no options or inherited stored settings
+  are synthesized.
 - Native writes reject `ANY`/`UNASSIGNED`. The hook writes with `ALL` or `ONE`
   after verifying the named server exists. `getServer4` intentionally excludes
   reserved `all` (`src/hooks/dhcp/pgsql/pgsql_query_macros_dhcp.h:685–701`), so
@@ -188,6 +189,36 @@ native pull applies creation and updates; reload and real process restart load
 persisted configuration. Periodic fetching, when independently enabled, can also
 activate changes. No automatic activation is added by this hook.
 
-Tests inspect native active configuration, not DHCP packet allocation. Minimal
-written subnets have no pools. Allocation, failed activation and external-writer
-races are outside this verified boundary; see [the complete contract](commands.md).
+The Milestone 4 tests inspect active configuration without packet allocation.
+Milestone 5 adds an opt-in isolated packet path; its current results and source
+evidence are in [pools](pools.md). External-writer races remain outside the
+supported boundary; see [the complete contract](commands.md).
+
+## Basic pool replacement and preservation
+
+Kea 3.2.1 `Pool4::create` validates IPv4 addresses and range order
+(`src/lib/dhcpsrv/pool.cc:77–127`). `Subnet::addPool` checks membership, overlap
+and duplicate ranges, then sorts pools (`src/lib/dhcpsrv/subnet.cc:464`).
+`Pool4::toElement` serializes a range or an equivalent CIDR; callers must not
+assume the native representation always matches request text.
+
+Both native upserts delete existing pools and recreate the supplied collection
+inside the subnet transaction (PostgreSQL `pgsql_cb_dhcp4.cc:988–1040`; MySQL
+`mysql_cb_dhcp4.cc:1120–1160`). Supplying an empty native subnet would therefore
+remove stored pools. The hook preserves freshly read basic pools when `pools`
+is omitted and replaces them only when that field is explicit. It compares
+complete native serialization against a baseline with basic ranges, rejecting
+richer pool attributes rather than silently removing them. An empty explicit
+list uses the same native replacement transaction.
+
+Native reads reconstruct pool attributes (PostgreSQL `:571–600`; MySQL
+`:676–703`), but use nonzero endpoints to recognize a present pool. The hook
+rejects `0.0.0.0` as either endpoint to guarantee round-trip preservation. No
+database-specific branch, direct SQL, schema or pool-management table is added.
+
+The packet harness uses the upstream loopback UDP support
+(`src/lib/dhcpsrv/cfg_iface.cc:168–189`), test port options
+(`src/bin/dhcp4/main.cc:129–156`) and relay-based subnet selection. Unlike
+upstream `Dhcp4Client` unit helpers, it sends real UDP datagrams to a separate
+server process. Namespace safety and execution results are documented in
+[pools](pools.md).

@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from mutation import verify_mutations
+from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
 from smoke import require_success
 
@@ -172,11 +173,15 @@ def run_case(args, directory, multithreading):
             environment = pg_environment.copy()
             environment.update(KEA_PIDFILE_DIR=str(directory),
                                KEA_LOCKFILE_DIR=str(directory),
+                               KEA_DHCP_DATA_DIR=str(directory),
                                KEA_HOOKS_PATH=str(hook_directory))
+            if args.packet:
+                environment["KEA_LFC_EXECUTABLE"] = str(args.lfc.resolve())
             with (directory / "kea.log").open("w", encoding="utf-8") as log:
                 execute([args.server, "-T", config_path], env=environment, cwd=directory)
                 process = subprocess.Popen(
-                    [str(args.server), "-d", "-c", str(config_path)], env=environment,
+                    [str(args.server), "-d", "-c", str(config_path),
+                     *(["-p", "1067", "-P", "1068"] if args.packet else [])], env=environment,
                     cwd=directory, stdout=log, stderr=subprocess.STDOUT,
                 )
                 deadline = time.monotonic() + 15
@@ -293,11 +298,17 @@ def run_case(args, directory, multithreading):
                     "'restore fixture', false); "
                     "UPDATE dhcp4_subnet SET shared_network_name=NULL WHERE subnet_id=42; COMMIT")
 
+                active_before_outage = require_success(send("config-get"))
                 execute([pg / "pg_ctl", "-D", data, "-m", "fast", "-w", "stop"],
                         env=pg_environment)
                 pg_started = False
+                assert send("config-backend-pull")["result"] != 0
                 assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
                     "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}})["result"] == 1
+                # Native reconnect removes the broken backend: a subsequent
+                # pull can succeed as a no-op. Check runtime, not status alone.
+                require_success(send("config-backend-pull"))
+                assert require_success(send("config-get")) == active_before_outage
                 response = send("cb-subnet4-list")
                 assert response == {
                     "result": 1,
@@ -346,10 +357,13 @@ def run_case(args, directory, multithreading):
                     send, rows_snapshot, sql, config, save,
                     lambda: sql("REVOKE INSERT ON dhcp4_subnet_server FROM kea_writer"),
                     lambda: sql("GRANT INSERT ON dhcp4_subnet_server TO kea_writer"))
+                if args.packet:
+                    verify_dhcp(send, config, save, directory, rows_snapshot)
                 require_success(send("shutdown"))
                 assert process.wait(timeout=10) == 0
                 process = subprocess.Popen(
-                    [str(args.server), "-d", "-c", str(config_path)], env=environment,
+                    [str(args.server), "-d", "-c", str(config_path),
+                     *(["-p", "1067", "-P", "1068"] if args.packet else [])], env=environment,
                     cwd=directory, stdout=log, stderr=subprocess.STDOUT,
                 )
                 deadline = time.monotonic() + 15
@@ -357,10 +371,14 @@ def run_case(args, directory, multithreading):
                     try:
                         active = require_success(send("config-get"))["Dhcp4"]["subnet4"]
                         assert {row["id"]: row["subnet"] for row in active}[900] == "198.18.4.0/24"
+                        pools = {row["id"]: row["pools"] for row in active}
+                        assert pools[900][0]["pool"].replace(" ", "") == "198.18.4.10-198.18.4.20"
                         break
                     except (OSError, ValueError):
                         assert process.poll() is None and time.monotonic() < deadline
                         time.sleep(0.1)
+                if args.packet:
+                    verify_packet_restart(send, directory)
                 require_success(send("shutdown"))
                 assert process.wait(timeout=10) == 0
                 print("PASS: persisted subnet loaded after actual Kea process restart")
@@ -392,8 +410,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("server", "hook", "pgsql-hook", "schema", "pg-bin", "work-dir"):
         parser.add_argument(f"--{name}", required=True, type=Path)
+    parser.add_argument("--packet", action="store_true",
+                        help="run DORA inside the packet namespace runner")
+    parser.add_argument("--lfc", type=Path, help="matching Kea lease-file cleanup executable")
     args = parser.parse_args()
+    if args.packet:
+        _isolated()
     dependencies = [args.server, args.hook, args.pgsql_hook, args.schema]
+    if args.packet:
+        if args.lfc is None:
+            print("SKIP: packet tests require --lfc with a matching kea-lfc executable")
+            return 77
+        dependencies.append(args.lfc)
     for binary in ("initdb", "pg_ctl", "psql", "pg_dump"):
         dependencies.append(args.pg_bin / binary)
     missing = [str(path) for path in dependencies if not path.is_file()]

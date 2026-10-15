@@ -209,3 +209,29 @@ and actual process restart reloads them. Writes alone do not change `config-get`
 when periodic fetching is disabled. DHCP allocation, concurrent external writers
 and commit-boundary connection loss are not proved safe by these tests; see
 [the integrity and activation boundary](commands.md).
+
+## Milestone 5 pool and packet extension
+
+The existing SQL test now shares the pool mutation cases in `tests/mutation.py`.
+The contract accepts only explicit IPv4 start/end ranges. An omitted `pools`
+field preserves freshly read basic pools; an explicit list replaces the complete
+collection, including `[]` to remove all pools. Rich existing subnet/pool settings
+remain protected. Native transactions include pool changes and audit records;
+the late-failure checks compare complete table contents after rollback. See
+[the contract](commands.md) and [upstream pool evidence](pools.md).
+
+Enable `KEA_DB_COMMANDS_DHCP_TESTS=ON` alongside this engine's existing SQL test
+option to add `mysql_dhcp`. Both threading modes use fresh private databases
+and an unmodified Kea 3.2.1 server in a disposable unprivileged user/network
+namespace. Loopback relay packets on test UDP ports 1067/1068 exercise real
+DISCOVER/OFFER/REQUEST/ACK and persisted memfile leases. The test does not use a
+SQL lease backend; SQL manages the subnet/pools and Kea records the lease in
+its own memfile. Native pull, replacement/reload, restart and empty-pool checks
+separate persistence from activation and allocation. Failed activation does not
+roll back SQL. See [build and namespace prerequisites](development.md#milestone-5-pool-and-packet-verification).
+
+Milestone 5 pool mutations and real DHCP packet checks passed against MariaDB
+10.11.19 in both threading modes; [the pool verification record](pools.md)
+identifies coverage and skipped checks. Earlier milestone
+results above establish the previous contract only. Concurrent external writers
+and connection loss exactly at commit remain unsupported/uncertain respectively.

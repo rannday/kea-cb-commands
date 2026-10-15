@@ -5,11 +5,13 @@ configuration backends through Kea commands. It targets unmodified upstream Kea
 on Linux and reuses its PostgreSQL and MySQL/MariaDB backend implementations and
 schema. It has no dependency on another repository, custom distribution, or Docker.
 
-**Status: native DHCPv4 reads and minimal subnet create/update verified on Kea
-3.2.1 using PostgreSQL 15 and MariaDB 10.11.**
+**Status: native DHCPv4 reads and subnet create/update target Kea 3.2.1,
+PostgreSQL 15 and MariaDB 10.11.**
 `cb-subnet4-list` reads through Kea's existing configuration backend interfaces
 and returns native subnet configuration. `cb-subnet4-set` persists one minimal
-standalone subnet through those same interfaces, without activating it.
+standalone subnet and basic IPv4 address pools through those same interfaces,
+without activating them. Omitted `pools` preserves stored basic pools; an explicit
+list replaces them, including an empty list to remove all pools.
 See the [mutation command contract](docs/commands.md), including its required
 exclusive-writer policy, and [PostgreSQL integration](docs/postgresql.md)
 for setup, the command contract and verified complex fields;
@@ -20,8 +22,10 @@ to prepare native statements even though listing performs no writes;
 PostgreSQL supports the tested SELECT-only account. Oracle MySQL is unverified.
 The list command requires one configured backend, accepts only absent or empty
 arguments, and rejects shared-network subnets to avoid incomplete results.
-Commercial `cb_cmds` compatibility, deletion, pools/options mutations and DHCPv6
-are not implemented. DHCP allocation from written subnets is not verified.
+Commercial `cb_cmds` compatibility, deletion, option mutations and DHCPv6
+are not implemented. See [pool behavior and packet verification](docs/pools.md)
+for pinned upstream evidence and the verification record. Real DORA exchanges
+and recorded leases passed on PostgreSQL and MariaDB with threading on and off.
 
 Initial build candidates are **Kea 3.2.1** (first target) and **3.0.4 LTS**
 (second target, source-assessed only). Build a separate artifact against
@@ -79,11 +83,12 @@ error. The command returns no credentials or configuration data.
 - [Architecture and implementation roadmap](docs/architecture.md)
 - [Development, prerequisites, and verification](docs/development.md)
 - [PostgreSQL setup and integration tests](docs/postgresql.md)
-- [Minimal subnet mutation contract and activation](docs/commands.md)
+- [Subnet and pool mutation contract and activation](docs/commands.md)
 - [Verified backend selection, selectors and recovery](docs/backend-behavior.md)
 - [MySQL/MariaDB prerequisites and isolated test](docs/mysql.md)
 - `src/diagnostic.cc`: hook entry points, diagnostic, subnet list and set commands
-- `tests/`: transport, real-Kea lifecycle, and isolated PostgreSQL/MySQL tests
+- [Pool persistence and isolated DHCP packet tests](docs/pools.md)
+- `tests/`: transport, real-Kea lifecycle, isolated PostgreSQL/MySQL and DHCP tests
 - `.github/workflows/ci.yml`: Linux build and lifecycle matrix, not yet executed
 
 Original code is licensed under [MPL-2.0](LICENSE). This project is independent of

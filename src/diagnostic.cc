@@ -5,6 +5,7 @@
 #include <cc/command_interpreter.h>
 #include <dhcpsrv/cfgmgr.h>
 #include <dhcpsrv/config_backend_dhcp4_mgr.h>
+#include <dhcpsrv/pool.h>
 #include <hooks/callout_handle.h>
 #include <hooks/hooks.h>
 #include <hooks/library_handle.h>
@@ -176,9 +177,10 @@ isc::data::ConstElementPtr setSubnet(const isc::data::ConstElementPtr& arguments
         throw ContractError("server-tag must be lowercase without surrounding whitespace.");
     }
     const auto input = arguments->get("subnet4");
-    if (input->getType() != Element::map || input->mapValue().size() != 3 ||
+    if (input->getType() != Element::map ||
+        input->mapValue().size() != (input->get("pools") ? 4 : 3) ||
         !input->get("id") || !input->get("subnet") || !input->get("valid-lifetime")) {
-        throw ContractError("subnet4 supports only required id, subnet and valid-lifetime.");
+        throw ContractError("subnet4 requires id, subnet and valid-lifetime; only pools is optional.");
     }
     const auto id = input->get("id");
     const auto lifetime = input->get("valid-lifetime");
@@ -214,6 +216,34 @@ isc::data::ConstElementPtr setSubnet(const isc::data::ConstElementPtr& arguments
     } catch (...) {
         throw ContractError("subnet must be a canonical IPv4 CIDR string.");
     }
+    const auto pools = input->get("pools");
+    if (pools) {
+        if (pools->getType() != Element::list) {
+            throw ContractError("pools must be a list of start/end address maps.");
+        }
+        for (const auto& range : pools->listValue()) {
+            if (range->getType() != Element::map || range->mapValue().size() != 2 ||
+                !range->get("start") || !range->get("end") ||
+                range->get("start")->getType() != Element::string ||
+                range->get("end")->getType() != Element::string) {
+                throw ContractError("Each pool supports only required start and end strings.");
+            }
+            try {
+                const isc::asiolink::IOAddress first(range->get("start")->stringValue());
+                const isc::asiolink::IOAddress last(range->get("end")->stringValue());
+                // Kea 3.2.1 SQL readers treat a zero endpoint as an absent pool.
+                if (first == isc::asiolink::IOAddress("0.0.0.0") ||
+                    last == isc::asiolink::IOAddress("0.0.0.0")) {
+                    throw ContractError("Zero pool endpoints cannot round-trip through Kea SQL.");
+                }
+                // Pool4 validates address family and ordering. addPool validates
+                // subnet membership and overlap, including duplicate ranges.
+                subnet->addPool(Pool4::create(first, last));
+            } catch (...) {
+                throw ContractError("Pools must be valid nonoverlapping IPv4 ranges within the subnet.");
+            }
+        }
+    }
     const auto pool = ConfigBackendDHCPv4Mgr::instance().getPool();
     const auto control = CfgMgr::instance().getCurrentCfg()->getConfigControlInfo();
     if (!pool || !control || control->getConfigDatabases().size() != 1) {
@@ -244,9 +274,24 @@ isc::data::ConstElementPtr setSubnet(const isc::data::ConstElementPtr& arguments
         const auto baseline = Subnet4::create(
             existing->get().first, existing->get().second, 0, 0,
             existing->getValid(isc::dhcp::Network::Inheritance::NONE), existing->getID());
+        for (const auto& stored_pool : existing->getPools(Lease::TYPE_V4)) {
+            // Comparing against basic native pools rejects pool options, classes,
+            // context and other unsupported settings before whole-object writes.
+            baseline->addPool(Pool4::create(stored_pool->getFirstAddress(),
+                                           stored_pool->getLastAddress()));
+        }
         if (!existing->getSharedNetworkName().empty() ||
             !existing->toElement()->equals(*baseline->toElement())) {
             throw ContractError("Existing subnet contains unsupported configuration; update refused.");
+        }
+        if (!pools) {
+            try {
+                for (const auto& stored_pool : existing->getPools(Lease::TYPE_V4)) {
+                    subnet->addPool(stored_pool);
+                }
+            } catch (...) {
+                throw ContractError("Existing pools do not fit the requested subnet; supply replacement pools.");
+            }
         }
     }
     // The native backend owns the transaction, audit revision and rollback.

@@ -60,7 +60,8 @@ retry loop is introduced. See [the command contract](postgresql.md) and
 
 The set command validates an explicit tag and minimal native subnet, reads by
 ID and prefix using `ANY` to detect hidden conflicts, refuses richer existing
-objects or association changes, and delegates one write to
+objects or association changes, constructs optional native `Pool4` ranges,
+preserves basic stored pools when omitted, and delegates one write to
 `createUpdateSubnet4`. Native drivers own transaction rollback and audit. The
 hook neither issues SQL nor constructs a private backend. Write failures are
 never retried; uncertain commit outcomes require reconciliation. See the
@@ -158,13 +159,22 @@ run succeeds; writing the workflow does not establish compatibility.
    one write; external-writer preflight races and commit-boundary uncertainty
    remain explicit limitations. No packet allocation or pull-failure proof is
    claimed. See [the mutation contract](commands.md).
-6. **Expand by tested object family.** Add deletion, shared networks, options,
+6. **Milestone 5: basic DHCPv4 pools and real allocation.**
+   Optional explicit start/end ranges use native pool construction and subnet
+   validation. Omission preserves existing basic pools; an explicit list replaces
+   them, including `[]`. The shared SQL tests cover persistence and rollback;
+   opt-in namespace tests cover real DORA, lease recording, activation failure,
+   replacement/reload and restart. See [the current verification record](pools.md);
+   no result is claimed before its gate completes.
+7. **Expand by tested object family.** Add deletion, shared networks, options,
    option definitions, globals, classes, and server associations only as supported
    by exact upstream APIs. Evaluate documented `cb_cmds` compatibility per command.
-7. **Release discipline.** Maintain exact-release build artifacts and regression
+8. **Release discipline.** Maintain exact-release build artifacts and regression
    gates; add packaging only after dependency and ABI constraints are demonstrated.
 
-The recommended next milestone is a narrowly specified pool extension with real
-DHCP allocation tests and failed-activation recovery tests. Establish an explicit
-deployment policy for coordinating writers before production writes; concurrent
-external writers require stronger upstream transaction or locking support.
+The recommended next milestone is release hardening of the supported subnet and
+pool contract: reproducible artifacts, documented deployment recovery and scale
+limits. Add another object family only after the existing acceptance gates pass.
+Establish an explicit deployment policy for coordinating writers before
+production writes; concurrent external writers require stronger upstream
+transaction or locking support.

@@ -1,8 +1,10 @@
-# Minimal DHCPv4 subnet mutation
+# DHCPv4 subnet and pool mutation
 
 `cb-subnet4-set` creates or updates one standalone subnet in one configured SQL
 configuration backend. Verified against unmodified Kea 3.2.1, PostgreSQL 15.19
-and MariaDB 10.11.19 through the native MySQL backend. Kea 3.0.4 and Oracle
+and MariaDB 10.11.19 through the native MySQL backend for Milestone 4.
+Milestone 5 pool and packet results are recorded separately in
+[pools](pools.md) after verification. Kea 3.0.4 and Oracle
 MySQL writes are unverified. This is an independent command contract.
 
 ## Request and response
@@ -17,16 +19,19 @@ Send through Kea's native control channel:
     "subnet4": {
       "id": 900,
       "subnet": "198.18.0.0/24",
-      "valid-lifetime": 600
+      "valid-lifetime": 600,
+      "pools": [
+        {"start": "198.18.0.10", "end": "198.18.0.20"}
+      ]
     }
   }
 }
 ```
 
-All five fields shown inside `arguments` are required. Only `server-tag` and
-`subnet4` are allowed at its top level; `subnet4` is one map, not an array, with
-exactly `id`, `subnet`, and `valid-lifetime`. Unknown fields are errors even when
-empty. There are no defaults taken from active server globals or shared networks.
+`server-tag` and `subnet4` are required and are the only top-level argument
+fields. `subnet4` is one map, not an array: `id`, `subnet`, and `valid-lifetime`
+are required; `pools` is optional. Unknown fields are errors even when empty.
+There are no defaults taken from active server globals or shared networks.
 
 - `id` and `valid-lifetime` must be JSON integers in `1..4294967294`. Booleans,
   floats, numeric strings, zero and the unsigned maximum are rejected.
@@ -36,6 +41,13 @@ empty. There are no defaults taken from active server globals or shared networks
   native `ServerTag` validates its remaining constraints (1..256 characters,
   reserved `any` rejected). A named server must already exist. Reserved `all`
   selects the native universal association. The command creates no server record.
+- `pools`, when present, is a list of maps containing exactly the string fields
+  `start` and `end`. Each pair must form a valid IPv4 range inside the subnet.
+  Kea validates range order, subnet membership and overlap, including duplicates.
+  IPv6, malformed structures, unsupported pool fields and `0.0.0.0` endpoints
+  are rejected. Native SQL reads omit a range with a zero endpoint; rejecting it
+  prevents silent loss on reconstruction. Options, classes, reservations,
+  exclusions and allocation policies are unsupported.
 - Exactly one SQL backend must appear in active `config-control`; its native
   type must be `postgresql` or `mysql`. No per-command backend selector exists.
 
@@ -50,7 +62,10 @@ Success means the native backend call committed:
     "subnet4": {
       "id": 900,
       "subnet": "198.18.0.0/24",
-      "valid-lifetime": 600
+      "valid-lifetime": 600,
+      "pools": [
+        {"start": "198.18.0.10", "end": "198.18.0.20"}
+      ]
     },
     "persisted": true,
     "activation-requested": false
@@ -58,8 +73,9 @@ Success means the native backend call committed:
 }
 ```
 
-The response echoes the validated minimal object; it is not effective runtime
-configuration. Errors have `result: 1`, explanatory `text`, and no `arguments`.
+The response echoes the validated request object, including `pools` only when
+supplied. It does not expand preserved pools into an omitted field. It is not
+effective runtime configuration. Errors have `result: 1`, explanatory `text`, and no `arguments`.
 Validation errors identify the failed contract. Native exceptions return:
 `Configuration backend write failed or unavailable; reconcile backend state before retrying.`
 Raw exception text and connection details are not returned. Kea's own logs may
@@ -68,13 +84,23 @@ contain database details and must be protected.
 ## Create, update and conflict rules
 
 The ID identifies the object. An absent ID creates it; an existing ID updates
-its prefix and lifetime only when its stored configuration has exactly the
-minimal native representation and exactly the requested server association.
+its prefix, lifetime and pool collection only when its stored configuration has
+exactly the supported native representation and exactly the requested server
+association.
 The hook compares native serialization against a minimal `Subnet4` baseline,
-with renew/rebind timers zero and no pools, options or other extra settings.
+with renew/rebind timers zero and basic address pools only. Pool-level options,
+classes, context and other extra settings are refused along with richer subnet
+settings.
 An existing richer object is rejected, including when unsupported values would
 otherwise be overwritten by Kea's whole-object update. This is replacement of
-a minimal object, not a general merge or patch command.
+a supported object, not a general merge or patch command.
+
+Omitting `pools` on an existing subnet preserves its pools from a fresh native
+backend read. Omitting it on creation creates no pools. If preserved pools do not
+fit a changed prefix, the request fails; supply an explicit replacement list.
+An explicit nonempty list replaces the whole pool collection. An explicit `[]`
+removes all pools. Rich existing objects remain protected even when a replacement
+list is supplied. No pool-level mutation command is added.
 
 A prefix owned by another ID is rejected, even if that object is associated
 with another server or unassigned. Unassigned and multiply associated existing
@@ -92,7 +118,10 @@ daemon's `cb-subnet4-list` result until the active tag matches.
 ## Integrity boundary
 
 The hook calls `ConfigBackendPoolDHCPv4::createUpdateSubnet4` once. Both native
-drivers wrap the subnet, its associations and audit records in one transaction.
+drivers wrap the subnet, its pools, associations and audit records in one
+transaction.
+The drivers delete old pools on update and insert the supplied collection; the
+hook explicitly copies stored basic pools when the field is omitted.
 Tests force an association INSERT failure after a subnet INSERT or UPDATE and
 compare every official table before/after: both engines roll back the subnet,
 association changes and audit records. Sequence/auto-increment counters can
@@ -131,15 +160,26 @@ periodic backend fetching can activate data later without a manual command.
 
 For controlled activation, inspect persisted data, then issue the native pull
 or reload separately and inspect its result and `config-get`. A failed pull is
-separate from a committed write. No two-phase persistence/activation guarantee
-or activation-failure recovery is implemented.
+separate from a committed write. Inspect the native activation response and
+active configuration before assuming traffic uses the new pools. Restore backend
+availability or repair the separate runtime configuration, reconcile SQL with
+`cb-subnet4-list`, and retry native activation deliberately. No two-phase
+persistence/activation guarantee or automatic rollback is implemented.
 
-The tests use no DHCP interfaces or packet sockets. They verify active runtime
-configuration through native `config-get`, not successful DHCP allocation.
-This milestone forbids pools; the created standalone subnets have no dynamic
-allocation pool. Positive packet/allocation proof remains a later milestone
-with an explicit pool contract. Effective inherited runtime defaults may differ
-from the minimal stored object.
+Kea can remove its live backend connection after a failed reload or backend
+outage. A later pull can then succeed without applying data. Confirm connectivity
+and inspect active `config-get`; a corrected reload can restore the connection.
+The packet tests compare all SQL table contents across failed activation before
+performing this explicit recovery.
+
+The ordinary SQL suites use no DHCP interfaces. The opt-in packet suites start
+unmodified Kea in a disposable Linux user/network namespace with loopback only.
+A relay sends real DHCPDISCOVER and DHCPREQUEST datagrams on test UDP ports
+1067/1068. Checks distinguish SQL persistence, backend reconstruction, native
+active configuration, OFFER/ACK and a persisted memfile lease. These suites also
+exercise empty pools, replacement/reload, restart and failed activation without
+rolling back SQL. See [packet architecture and results](pools.md). Effective
+inherited runtime defaults may differ from the stored object.
 
 ## Test coverage and limits
 
@@ -153,7 +193,11 @@ multiple-backend rejection. The historical CTest names `postgresql_read` and
 `mysql_read` now run both read and mutation phases. See [PostgreSQL](postgresql.md)
 and [MariaDB](mysql.md) for isolated setup and privilege requirements.
 
-Deletion, pools, options, classes, shared networks, server creation/retagging,
-DHCPv6, batch writes, optimistic concurrency, automatic activation, production
-load, allocation proof and mixed-release compatibility remain unimplemented or
-unverified as applicable.
+Milestone 5 extends this shared suite with pool creation, replacement, omission,
+empty lists, validation and late-failure rollback. Opt-in `postgresql_dhcp` and
+`mysql_dhcp` add real packet checks in both threading modes. Both engines passed
+these checks; see [the verification record](pools.md) for scope and limitations.
+
+Deletion, options, classes, shared networks, server creation/retagging, DHCPv6,
+batch writes, optimistic concurrency, automatic activation, production load and
+mixed-release compatibility remain unimplemented or unverified as applicable.

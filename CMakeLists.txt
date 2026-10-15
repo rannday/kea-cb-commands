@@ -83,6 +83,10 @@ if(BUILD_TESTING)
         set_tests_properties(hook_lifecycle PROPERTIES TIMEOUT 90)
     endif()
     option(KEA_DB_COMMANDS_POSTGRESQL_TESTS "Run isolated real PostgreSQL integration" OFF)
+    option(KEA_DB_COMMANDS_DHCP_TESTS "Run real DHCP in disposable Linux namespaces" OFF)
+    if(KEA_DB_COMMANDS_DHCP_TESTS)
+        find_program(KEA_LFC_EXECUTABLE NAMES kea-lfc)
+    endif()
     if(KEA_DB_COMMANDS_POSTGRESQL_TESTS)
         set(KEA_POSTGRESQL_BIN_DIR "" CACHE PATH "PostgreSQL server binary directory")
         set(KEA_POSTGRESQL_HOOK "" CACHE FILEPATH "Matching Kea libdhcp_pgsql.so")
@@ -103,6 +107,21 @@ if(BUILD_TESTING)
         string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
         set_tests_properties(postgresql_read PROPERTIES
             ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+        if(KEA_DB_COMMANDS_DHCP_TESTS)
+            add_test(NAME postgresql_dhcp
+                COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/packet_namespace.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/postgresql.py --packet
+                    --lfc "${KEA_LFC_EXECUTABLE}"
+                    --server "${KEA_DHCP4_EXECUTABLE}"
+                    --hook $<TARGET_FILE:kea_db_commands>
+                    --pgsql-hook "${KEA_POSTGRESQL_HOOK}"
+                    --schema "${KEA_POSTGRESQL_SCHEMA}"
+                    --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
+                    --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql-dhcp)
+            set_tests_properties(postgresql_dhcp PROPERTIES TIMEOUT 240 SKIP_RETURN_CODE 77
+                LABELS "PostgreSQL;DHCP"
+                ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+        endif()
     endif()
     option(KEA_DB_COMMANDS_MYSQL_TESTS "Run isolated real MySQL/MariaDB integration" OFF)
     if(KEA_DB_COMMANDS_MYSQL_TESTS)
@@ -127,5 +146,22 @@ if(BUILD_TESTING)
         string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
         set_tests_properties(mysql_read PROPERTIES
             ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+        if(KEA_DB_COMMANDS_DHCP_TESTS)
+            add_test(NAME mysql_dhcp
+                COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/packet_namespace.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/mysql.py --packet
+                    --lfc "${KEA_LFC_EXECUTABLE}"
+                    --server "${KEA_DHCP4_EXECUTABLE}"
+                    --hook $<TARGET_FILE:kea_db_commands>
+                    --mysql-hook "${KEA_MYSQL_HOOK}"
+                    --schema "${KEA_MYSQL_SCHEMA}"
+                    --mysql-bin "${KEA_MYSQL_CLIENT}"
+                    --mysql-install-db "${KEA_MYSQL_INSTALL_DB}"
+                    --mysql-server "${KEA_MYSQL_SERVER}"
+                    --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql-dhcp)
+            set_tests_properties(mysql_dhcp PROPERTIES TIMEOUT 240 SKIP_RETURN_CODE 77
+                LABELS "MySQL;DHCP"
+                ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+        endif()
     endif()
 endif()

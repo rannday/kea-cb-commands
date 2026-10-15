@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from mutation import request, verify_mutations
+from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
 from postgresql import verify_complex
 from smoke import require_success
@@ -185,7 +186,10 @@ def run_case(args, directory, multithreading):
 
                 environment.update(KEA_PIDFILE_DIR=str(directory),
                                    KEA_LOCKFILE_DIR=str(directory),
+                                   KEA_DHCP_DATA_DIR=str(directory),
                                    KEA_HOOKS_PATH=str(hook_directory))
+                if args.packet:
+                    environment["KEA_LFC_EXECUTABLE"] = str(args.lfc.resolve())
                 if not args.select_only:
                     # Record which native prepared statements require each grant.
                     # Inspect output privately; never echo account names or SQL.
@@ -219,7 +223,8 @@ def run_case(args, directory, multithreading):
                 with (directory / "kea.log").open("w", encoding="utf-8") as log:
                     execute([args.server, "-T", config_path], env=environment, cwd=directory)
                     kea_process = subprocess.Popen(
-                        [str(args.server), "-d", "-c", str(config_path)],
+                        [str(args.server), "-d", "-c", str(config_path),
+                         *(["-p", "1067", "-P", "1068"] if args.packet else [])],
                         env=environment, cwd=directory, stdout=log, stderr=subprocess.STDOUT,
                     )
                     deadline = time.monotonic() + 15
@@ -346,10 +351,16 @@ def run_case(args, directory, multithreading):
                     verify_complex(require_success(send("cb-subnet4-list")), {42, 45}, "missing-server")
 
                     unavailable = {"result": 1, "text": "Configuration backend read failed or unavailable."}
+                    active_before_outage = require_success(send("config-get"))
                     stop(database_process)
                     assert database_process.returncode == 0, "MySQL shutdown failed"
+                    assert send("config-backend-pull")["result"] != 0
                     assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
                         "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}})["result"] == 1
+                    # Reconnect removes the broken backend; later pulls can
+                    # report success without applying any configuration.
+                    require_success(send("config-backend-pull"))
+                    assert require_success(send("config-get")) == active_before_outage
                     assert send("cb-subnet4-list") == unavailable
                     deadline = time.monotonic() + 2
                     while time.monotonic() < deadline:
@@ -413,10 +424,13 @@ def run_case(args, directory, multithreading):
 
                     verify_mutations(send, snapshot, sql, config, save,
                                      deny_association, restore_privileges)
+                    if args.packet:
+                        verify_dhcp(send, config, save, directory, snapshot)
                     require_success(send("shutdown"))
                     assert kea_process.wait(timeout=10) == 0
                     kea_process = subprocess.Popen(
-                        [str(args.server), "-d", "-c", str(config_path)], env=environment,
+                        [str(args.server), "-d", "-c", str(config_path),
+                         *(["-p", "1067", "-P", "1068"] if args.packet else [])], env=environment,
                         cwd=directory, stdout=log, stderr=subprocess.STDOUT,
                     )
                     deadline = time.monotonic() + 15
@@ -424,10 +438,14 @@ def run_case(args, directory, multithreading):
                         try:
                             active = require_success(send("config-get"))["Dhcp4"]["subnet4"]
                             assert {row["id"]: row["subnet"] for row in active}[900] == "198.18.4.0/24"
+                            pools = {row["id"]: row["pools"] for row in active}
+                            assert pools[900][0]["pool"].replace(" ", "") == "198.18.4.10-198.18.4.20"
                             break
                         except (OSError, ValueError):
                             assert kea_process.poll() is None and time.monotonic() < deadline
                             time.sleep(0.1)
+                    if args.packet:
+                        verify_packet_restart(send, directory)
                     require_success(send("shutdown"))
                     assert kea_process.wait(timeout=10) == 0
                     print("PASS: persisted subnet loaded after actual Kea process restart")
@@ -450,7 +468,15 @@ def main():
         "--select-only", action="store_true",
         help="probe native SELECT-only startup; preparation failures remain test failures",
     )
+    parser.add_argument("--packet", action="store_true",
+                        help="run DORA inside the packet namespace runner")
+    parser.add_argument("--lfc", type=Path, help="matching Kea lease-file cleanup executable")
     args = parser.parse_args()
+    if args.packet:
+        _isolated()
+        if args.lfc is None or not args.lfc.is_file() or not os.access(args.lfc, os.X_OK):
+            print("SKIP: packet tests require --lfc with a matching kea-lfc executable")
+            return 77
     files = ("server", "hook", "mysql_hook", "schema", "mysql_bin",
              "mysql_install_db", "mysql_server")
     missing = [f"{name}={getattr(args, name)}" for name in files
