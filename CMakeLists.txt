@@ -25,11 +25,27 @@ set(CMAKE_REQUIRED_LIBRARIES PkgConfig::KEA)
 check_cxx_source_compiles([=[
     #include <config.h>
     #include <hooks/hooks.h>
+    #include <dhcpsrv/cfgmgr.h>
     #include <dhcpsrv/config_backend_dhcp4_mgr.h>
     static_assert(KEA_HOOKS_VERSION == 30201 || KEA_HOOKS_VERSION == 30004,
                   "Only Kea 3.2.1 and 3.0.4 have been source-assessed");
     int main() {
         auto pool = isc::dhcp::ConfigBackendDHCPv4Mgr::instance().getPool();
+        if (pool) {
+            auto subnets = pool->getAllSubnets4(
+                isc::db::BackendSelector(isc::db::BackendSelector::stringToBackendType("mysql")),
+                isc::db::ServerSelector::ALL());
+            for (const auto& subnet : subnets) {
+                subnet->toElement();
+                subnet->getSharedNetworkName();
+            }
+            auto config = isc::dhcp::CfgMgr::instance().getCurrentCfg();
+            auto control = config->getConfigControlInfo();
+            if (control && !control->getConfigDatabases().empty()) {
+                std::string type;
+                control->getConfigDatabases().front().getParameterValue("type", type);
+            }
+        }
         return pool ? 0 : 1;
     }
 ]=] KEA_DB_COMMANDS_API_LINKS)
@@ -65,5 +81,51 @@ if(BUILD_TESTING)
                 --hook $<TARGET_FILE:kea_db_commands>
                 --work-dir ${CMAKE_CURRENT_BINARY_DIR}/runtime)
         set_tests_properties(hook_lifecycle PROPERTIES TIMEOUT 90)
+    endif()
+    option(KEA_DB_COMMANDS_POSTGRESQL_TESTS "Run isolated real PostgreSQL integration" OFF)
+    if(KEA_DB_COMMANDS_POSTGRESQL_TESTS)
+        set(KEA_POSTGRESQL_BIN_DIR "" CACHE PATH "PostgreSQL server binary directory")
+        set(KEA_POSTGRESQL_HOOK "" CACHE FILEPATH "Matching Kea libdhcp_pgsql.so")
+        set(KEA_POSTGRESQL_SCHEMA "" CACHE FILEPATH "Kea 3.2.1 dhcpdb_create.pgsql")
+        find_program(KEA_DHCP4_EXECUTABLE NAMES kea-dhcp4)
+        add_test(NAME postgresql_read
+            COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/postgresql.py
+                --server "${KEA_DHCP4_EXECUTABLE}"
+                --hook $<TARGET_FILE:kea_db_commands>
+                --pgsql-hook "${KEA_POSTGRESQL_HOOK}"
+                --schema "${KEA_POSTGRESQL_SCHEMA}"
+                --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql)
+        set_tests_properties(postgresql_read PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77
+            LABELS PostgreSQL)
+        # Staging upstream's hook changes its relative $ORIGIN search paths.
+        # Use the exact matching pkg-config libraries for this test process only.
+        string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
+        set_tests_properties(postgresql_read PROPERTIES
+            ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+    endif()
+    option(KEA_DB_COMMANDS_MYSQL_TESTS "Run isolated real MySQL/MariaDB integration" OFF)
+    if(KEA_DB_COMMANDS_MYSQL_TESTS)
+        set(KEA_MYSQL_CLIENT "" CACHE FILEPATH "mysql or mariadb client executable")
+        set(KEA_MYSQL_SERVER "" CACHE FILEPATH "mysqld or mariadbd executable")
+        set(KEA_MYSQL_INSTALL_DB "" CACHE FILEPATH "mysql_install_db or mariadb-install-db")
+        set(KEA_MYSQL_HOOK "" CACHE FILEPATH "Matching Kea libdhcp_mysql.so")
+        set(KEA_MYSQL_SCHEMA "" CACHE FILEPATH "Kea 3.2.1 dhcpdb_create.mysql")
+        find_program(KEA_DHCP4_EXECUTABLE NAMES kea-dhcp4)
+        add_test(NAME mysql_read
+            COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/mysql.py
+                --server "${KEA_DHCP4_EXECUTABLE}"
+                --hook $<TARGET_FILE:kea_db_commands>
+                --mysql-hook "${KEA_MYSQL_HOOK}"
+                --schema "${KEA_MYSQL_SCHEMA}"
+                --mysql-bin "${KEA_MYSQL_CLIENT}"
+                --mysql-install-db "${KEA_MYSQL_INSTALL_DB}"
+                --mysql-server "${KEA_MYSQL_SERVER}"
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql)
+        set_tests_properties(mysql_read PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77
+            LABELS MySQL)
+        string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
+        set_tests_properties(mysql_read PROPERTIES
+            ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
     endif()
 endif()

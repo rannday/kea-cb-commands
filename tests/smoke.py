@@ -15,6 +15,7 @@ from pathlib import Path
 from control import command
 
 DIAGNOSTIC = "db-commands-diagnostic"
+SUBNET_LIST = "cb-subnet4-list"
 
 
 def require_success(response):
@@ -114,12 +115,24 @@ def run_case(server, hook, directory, multithreading):
                     time.sleep(0.1)
             if DIAGNOSTIC not in names:
                 raise AssertionError("Diagnostic command was not registered")
+            if SUBNET_LIST not in names:
+                raise AssertionError("Subnet list command was not registered")
+            assert "cb-subnet4-set" in names
+            valid_set = {"server-tag": "all", "subnet4": {
+                "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}}
+            assert send("cb-subnet4-set", valid_set)["text"] == (
+                "cb-subnet4-set requires exactly one configured SQL backend.")
+            for arguments in (None, {}, {"unexpected": True}, []):
+                assert send("cb-subnet4-set", arguments)["result"] == 1
+            for arguments in (None, {}, {"unexpected": True}, []):
+                if send(SUBNET_LIST, arguments)["result"] != 1:
+                    raise AssertionError("Missing backend or invalid arguments were accepted")
             for arguments in (None, {}):
                 result = require_success(send(DIAGNOSTIC, arguments))
                 if (
                     result["configuration-backend-pool-accessible"] is not True
                     or result["database-connectivity-tested"] is not False
-                    or result["mutations-supported"] is not False
+                    or result["mutations-supported"] is not True
                     or result["kea-hooks-version"] not in (30201, 30004)
                 ):
                     raise AssertionError(result)
@@ -129,14 +142,20 @@ def run_case(server, hook, directory, multithreading):
             config["Dhcp4"]["hooks-libraries"] = []
             save()
             require_success(send("config-reload"))
+            assert "cb-subnet4-set" not in require_success(send("list-commands"))
             if DIAGNOSTIC in require_success(send("list-commands")):
                 raise AssertionError("Command remained registered after unload")
+            if SUBNET_LIST in require_success(send("list-commands")):
+                raise AssertionError("Subnet list remained registered after unload")
             if send(DIAGNOSTIC)["result"] != 2:
                 raise AssertionError("Unloaded command did not become unsupported")
             config["Dhcp4"]["hooks-libraries"] = [{"library": str(hook)}]
             save()
             require_success(send("config-reload"))
             require_success(send(DIAGNOSTIC))
+            assert "cb-subnet4-set" in require_success(send("list-commands"))
+            if send(SUBNET_LIST)["result"] != 1:
+                raise AssertionError("Missing backend error changed after reload")
             require_success(send("shutdown"))
             if process.wait(timeout=10) != 0:
                 raise AssertionError("Kea shutdown failed")

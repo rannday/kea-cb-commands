@@ -95,7 +95,7 @@ tar -xzf ".upstream/kea-$KEA_VERSION.tar.gz" -C .upstream
 meson setup "build-kea-$KEA_VERSION" ".upstream/kea-Kea-$KEA_VERSION" \
   --prefix="$KEA_PREFIX" --libdir=lib --buildtype=debugoptimized \
   -Dcpp_std=c++14 -Dcrypto=openssl \
-  -Dmysql=enabled -Dpostgresql=enabled -Dkrb5=disabled -Dnetconf=disabled
+  -Dmysql=disabled -Dpostgresql=enabled -Dkrb5=disabled -Dnetconf=disabled
 meson compile -C "build-kea-$KEA_VERSION" -j 2
 meson install -C "build-kea-$KEA_VERSION"
 ```
@@ -121,7 +121,8 @@ the DHCPv4 target and its dependencies, use its generated uninstalled pkg-config
 metadata and the daemon from the same build tree:
 
 ```bash
-ninja -C "build-kea-$KEA_VERSION" -j 2 src/bin/dhcp4/kea-dhcp4
+ninja -C "build-kea-$KEA_VERSION" -j 2 src/bin/dhcp4/kea-dhcp4 \
+  src/hooks/dhcp/pgsql/libdhcp_pgsql.so src/lib/d2srv/libkea-d2srv.so
 export PKG_CONFIG_PATH="$PWD/build-kea-$KEA_VERSION/meson-uninstalled"
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
   -DKEA_DB_COMMANDS_RUNTIME_TESTS=ON \
@@ -177,13 +178,21 @@ authentication. It keeps Kea's security checks enabled. Unix sockets on this
 workstation's `/mnt/c` mount could not bind and its directory permissions failed
 Kea's checks, so the lifecycle fixture uses HTTP rather than disabling checks.
 
-## SQL integration gates (not implemented yet)
+## PostgreSQL read integration
+
+See [PostgreSQL setup, command contract and tests](postgresql.md). The opt-in
+`postgresql_read` CTest uses an isolated ephemeral cluster, the unchanged 3.2.1
+schema and native PostgreSQL hook. Missing dependencies are explicitly skipped.
+Transport and lifecycle tests remain independent of PostgreSQL. The hook performs
+no database mutations, initializes no backend and accepts no connection parameters.
+
+## Future SQL integration gates
 
 For each candidate Kea release and each SQL engine, provision an isolated test
 database and initialize its schema with that exact release's `kea-admin`.
 Configure upstream `libdhcp_pgsql.so` or `libdhcp_mysql.so` in Kea and supply
 `config-control` normally. Keep real credentials outside tracked files. This
-prototype does not read credentials or accept database connection parameters.
+hook does not read credentials or accept database connection parameters.
 
 Future tests must cover selectors/tags, unsupported and ambiguous backends, schema
 mismatch, validation failures before writes, transaction rollback, audit entries,
@@ -227,3 +236,231 @@ establish that a database is configured or reachable.
 
 The Linux CI matrix is provided for future execution. Its passing status must be
 established by real workflow runs, not inferred from YAML or source review.
+
+## Milestone 2 verification record
+
+Development moved to the Linux filesystem in Debian 12 WSL2. Kea's public
+`Kea-3.2.1` source tag was downloaded into ignored `.upstream/` and rebuilt from
+scratch with GCC 12.2, C++14, OpenSSL, shared libraries and PostgreSQL enabled;
+MySQL, Kerberos and NETCONF were disabled. Meson 1.12.1 was downloaded into
+`.upstream/` and run directly with Python, without installing it. No upstream
+source changes or system installation were needed. Build-tree `kea.pc` reports
+`3.2.1-git`; headers, daemon and PostgreSQL hook all come from this same tag/build.
+
+The hook's CMake compile/link probe, Debug shared-module build and C++14
+`-Wall -Wextra -Wpedantic` syntax check passed. All four exported hook entry points
+were present and `ldd` resolved every dependency to the matching build or system
+libraries. Six Python transport tests passed; changed Python files passed syntax
+checks. Ruff and clang-format are unavailable in this WSL environment, so their
+checks were not run. The historical formatter results above apply only to the
+initial diagnostic milestone.
+
+The user installed PostgreSQL 15.19 and its development/client prerequisites.
+An isolated cluster successfully initialized Kea 3.2.1's unchanged PostgreSQL
+schema (version 34.0) and loaded the tracked three-subnet fixture. The distribution
+cluster and other databases were left untouched.
+
+The final `ctest --test-dir build-native --output-on-failure` run passed **3/3**
+cases in 6.72 seconds: `control_transport` (six unit tests, 0.05 seconds),
+`hook_lifecycle` (0.30 seconds), and `postgresql_read` (6.37 seconds). No case was
+skipped. Both real-daemon harnesses exercised threading disabled and enabled.
+The SQL test confirmed native command registration, empty results, subnet 42
+(`192.0.2.0/24`, lifetime 600), universal/specific tag filtering, rejected arguments,
+generic disconnected-backend errors and clean shutdown. Inserting the fixture
+after startup while runtime `subnet4` remained empty demonstrated a fresh SQL
+read. Complete data/sequence snapshots were unchanged across reads; Kea connected
+as a SELECT-only role with transactions read-only by default. Both private
+clusters stopped and all temporary test files were removed. Missing-dependency
+execution was also checked separately and returned skip code 77.
+
+This proves the read-only path through our independently compiled hook and Kea's
+native PostgreSQL backend. It does not prove large configurations, reconnect
+recovery, complex subnet options/pools, multiple backends, installed packaging,
+3.0.4 SQL compatibility or the full upstream test suite. No configuration mutation
+command, direct SQL in the hook, package installation, persistent service or
+system configuration change was introduced.
+
+## Milestone 3 verification record
+
+The existing dirty worktree was inspected and preserved. Against the same
+unmodified Kea 3.2.1 source and shared-library build, the command now selects the
+sole configured backend's native type, rejects multiple configured databases,
+and refuses shared-network subnets whose membership/inherited settings native
+flat serialization would omit. Command arguments remain absent or empty only.
+The diagnostic contract is unchanged. See [upstream evidence](backend-behavior.md).
+
+The expanded PostgreSQL 15 test uses the unchanged official schema (34.0), a
+SELECT-only role with read-only transactions, private clusters and admin-only
+fixture writes. Both threading modes pass semantic checks for multiple subnets,
+multiple pools, subnet and pool options, timers, classes, user context, server
+associations, empty/unmatched results, duplicate-ID schema rejection,
+multiple-backend rejection, shared-network rejection, unchanged database dumps,
+disconnection and automatic recovery after private database restart. Repeated
+outage reads remain errors while native retry callbacks run. Recovery needs no
+config reload, custom reconnect code or new hook-owned connection. Processes
+shut down cleanly and temporary files are removed.
+
+Available checks passed:
+
+- CMake configure, expanded native API compile/link probe and C++14 module build
+  with `-Wall -Wextra -Wpedantic -Werror`.
+- CTest: three passing cases (`control_transport`, `hook_lifecycle`,
+  `postgresql_read`) and one explicit prerequisite skip (`mysql_read`).
+- Direct Python unit discovery: all six tests passed. All test Python modules
+  parsed successfully. Git whitespace check passed.
+
+Ruff (binary and Python module) and clang-format are unavailable; their checks
+were skipped. No dependencies were installed to obtain them. These results use
+Linux and the uninstalled 3.2.1 build, not native Windows, installed packaging,
+the complete upstream test suite, production load or Kea 3.0.4.
+
+MySQL/MariaDB runtime execution is blocked: neither server, client nor installer
+is available, and the matching Kea build disabled MySQL and lacks its native
+hook. The new [opt-in isolated harness](mysql.md) reports skip code 77, never a
+runtime pass. Native MySQL prepares mutation statements even for read commands;
+restricted SELECT-only startup is a separate compatibility limitation. Functional
+tests need privileges to prepare those native statements and use snapshots to
+detect changes. Oracle MySQL bootstrap and automatic MySQL recovery remain
+unverified. No package installation, persistent service, system database change,
+configuration mutation command, direct SQL in the hook, commit or push occurred.
+
+## Milestone 3.5 verification record
+
+Verified 2026-10-15 in Debian 12 WSL2 using the same unmodified Kea 3.2.1
+source and shared-library build. MariaDB server/client 10.11.19 and Connector/C
+3.3.20 development files were already installed. No packages were installed and
+no persistent service, system database or system configuration was changed.
+
+Enabling Meson's `mysql` option and building the native MySQL hook plus required
+daemon/PostgreSQL dependencies succeeded. `ldd` resolved all native hook
+dependencies, including `libmariadb.so.3`; `nm` confirmed `load`, `unload`,
+`version` and `multi_threading_compatible`. The hook framework version remains
+30201. CMake's cached pkg-config metadata needed refreshing after enabling
+MySQL, so staged hooks could find the new `libkea-mysql` library directory.
+See [reproducible build and test commands](mysql.md).
+
+The MariaDB harness now exercises the official schema 35.0 in fresh private
+instances with networking disabled. The native Kea connection successfully uses
+`host=localhost` and the fixture's `MYSQL_UNIX_PORT`. Both threading modes pass:
+registration, empty and known-subnet reads, multiple subnets/pools, subnet and
+pool options, timers, class references, additional class evaluation, user context,
+universal/specific/missing/unassigned tags, invalid arguments, and ambiguous
+backends with empty and overlapping configuration. All table contents remain
+unchanged across reads and reloads. Runtime subnet configuration remains empty.
+
+Fresh-account privilege probes establish that SELECT alone fails native statement
+preparation, then INSERT, UPDATE and DELETE are successively required. The
+four-grant schema-scoped account initializes and performs all functional reads;
+adding EXECUTE is unnecessary. No DDL/global grants are used. PostgreSQL continues
+to pass with SELECT-only credentials and read-only transactions. This limitation
+belongs to native MySQL statement preparation, not a database-specific hook path.
+
+Both fixtures now use `reconnect-wait-time: 1000`: this release's configuration
+backend passes that value unchanged to a millisecond timer. The previous value
+1 could exhaust retries before database restart; a real MariaDB run exposed
+that timing failure with threading enabled. With the corrected one-second
+interval, restart before exhaustion restores complex reads without reload.
+MariaDB's separate two-try exhaustion test logs `MYSQL_CB_RECONNECT_FAILED4`,
+keeps Kea alive under `serve-retry-continue`, and returns controlled errors.
+Restart after exhaustion does not restore reads during the two-second observation;
+`config-reload` does. No custom reconnect mechanism was added.
+
+Final available checks passed:
+
+- CMake configure/API compile-link probe and hook build with
+  `-Wall -Wextra -Wpedantic -Werror`; no project compiler warnings.
+- Full CTest: **4 passed, 0 failed, 0 skipped** in 117.14 seconds;
+  PostgreSQL 15.83 seconds and MariaDB 100.96 seconds.
+- Direct Python unit discovery: **6 passed, 0 failed, 0 skipped**.
+  All five Python test modules parse successfully.
+- Git whitespace checks. Temporary database processes stopped and fixture data,
+  sockets, credentials and logs were removed.
+
+Ruff (binary/module) and clang-format are unavailable; these two tool checks
+were skipped. The upstream dependency rebuild emitted a GCC optimization warning
+in upstream code; upstream is unmodified and its build succeeded. The full
+upstream test suite was not run. Oracle MySQL, Kea 3.0.4, installed packaging,
+startup with an unavailable database, alternative failure policies, production
+scale and configuration mutations remain outside this evidence. Shared-network
+subnets remain rejected; that rejection is runtime-tested by PostgreSQL.
+
+Milestone 3.5 changes only the two integration fixtures and documentation; the
+same native C++ hook serves both engines. No hook SQL, configuration mutation
+command, upstream source patch, commit or push was introduced. The next milestone
+should specify one DHCPv4 mutation's validation, transaction, audit and activation
+contract before implementing and testing it against both verified engines.
+
+## Milestone 4 verification record
+
+Verified on 2026-10-15 in Debian 12 WSL2, using the existing unmodified Kea 3.2.1
+shared-library build, PostgreSQL 15.19 and MariaDB 10.11.19. No packages were
+installed, upstream source changed, persistent services enabled, system databases
+accessed, commits created or changes pushed. Existing worktree changes were
+preserved. Temporary databases use the official matching schemas.
+
+`src/diagnostic.cc` adds `cb-subnet4-set` through the native Hooks API and reports
+mutation support in the diagnostic. It validates one explicit canonical IPv4
+prefix, ID, lifetime and server tag; requires one configured SQL backend; checks
+ID and prefix through `ANY`; refuses richer objects and association changes;
+then calls native `createUpdateSubnet4` exactly once. Existing listing behavior
+is retained. No hook SQL, custom transaction, background job or activation is
+introduced. See [the exact request/response contract](commands.md) and
+[pinned upstream mutation evidence](backend-behavior.md#native-subnet-mutations).
+
+`tests/mutation.py` shares real persistence and activation assertions between the
+two existing SQL harnesses. Both threading modes verify:
+
+- Create/update, persisted ID/prefix/lifetime, explicit named and universal tags.
+- Invalid types/bounds/prefixes/selectors, unsupported fields, prefix identity
+  conflicts, richer-object and retagging rejection, and ambiguous backends.
+- Unchanged unrelated subnet rows and associations, including objects hidden
+  by the active server tag, and unchanged existing pools/options after writes.
+- Native audit entries and changed modification timestamps across seconds.
+- Late association INSERT failures on both create and update: every official
+  table, including audit, matches its before snapshot after rollback. Sequence
+  and auto-increment allocation is not asserted to roll back.
+- Controlled disconnected write errors alongside existing native recovery tests.
+- New/updated SQL configuration visible through backend reads without changing
+  active `config-get`; explicit native pull/reload applies it, and an actual
+  Kea process restart loads the persisted subnet.
+
+PostgreSQL's original read phase retains SELECT-only credentials and read-only
+transactions. A separate writer role has table DML and sequence privileges for
+the mutation phase. MariaDB's original four-grant account performs reads without
+EXECUTE; a valid write fails without EXECUTE with unchanged tables, then succeeds
+after that grant for native audit procedure invocation. The late-failure test
+uses table-level association privilege revocation: schema-level privilege changes
+alone did not revoke the existing connection's access during experimentation.
+No permissions are weakened in a live system.
+
+Reproduce the configured build/checks after enabling both SQL tests with the
+paths in [PostgreSQL](postgresql.md) and [MariaDB](mysql.md):
+
+```sh
+PKG_CONFIG_PATH="$PWD/build-kea-3.2.1/meson-uninstalled" \
+  cmake -S . -B build-native -U__pkg_config_checked_KEA \
+  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-Werror
+cmake --build build-native --clean-first --parallel 2
+ctest --test-dir build-native --output-on-failure
+python3 -B -m unittest discover -s tests -p 'test_*.py'
+```
+
+The project build uses `-Wall -Wextra -Wpedantic -Werror` and completes without
+compiler warnings. Full CTest passes **4 tests, 0 failures, 0 skips**, including
+both real SQL engines and lifecycle with threading on/off. Direct Python unit
+discovery passes **6 tests, 0 failures, 0 skips**; all six Python modules parse.
+Whitespace checks pass. Ruff (binary/module) and clang-format are unavailable;
+their checks were not run. The full upstream Kea test suite was not run.
+The disposable harnesses stop processes and remove private files on completion.
+
+The demonstrated guarantee is one native write transaction. Upstream offers no
+public transaction spanning preflight and mutation: independent external writers
+must be coordinated, and cross-process concurrency is unsupported. Connection
+loss at commit can leave an uncertain outcome and requires reconciliation rather
+than automatic retry. Subnet timestamps have second precision and are not
+revision tokens. Failed activation recovery is not tested. No DHCP packet proof
+is claimed: minimal created subnets have no pools and tests listen on no DHCP
+interface. Oracle MySQL, Kea 3.0.4 SQL writes, installed packaging and production
+load remain unverified. A next milestone should add a narrow pool contract and
+real DHCP allocation plus activation-failure tests, retaining these integrity
+boundaries and an explicit policy for writer coordination.

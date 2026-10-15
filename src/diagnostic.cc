@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 #include <config.h>
 
+#include <asiolink/addr_utilities.h>
 #include <cc/command_interpreter.h>
 #include <dhcpsrv/cfgmgr.h>
 #include <dhcpsrv/config_backend_dhcp4_mgr.h>
@@ -12,6 +13,7 @@
 #include <log/message_initializer.h>
 #include <process/daemon.h>
 #include <sys/socket.h>
+#include <stdexcept>
 
 static_assert(KEA_HOOKS_VERSION == 30201 || KEA_HOOKS_VERSION == 30004,
               "Build against a source-assessed Kea release");
@@ -19,7 +21,7 @@ static_assert(KEA_HOOKS_VERSION == 30201 || KEA_HOOKS_VERSION == 30004,
 namespace {
 isc::log::Logger logger("db-commands");
 const char* messages[] = {"DB_COMMANDS_LOADED",
-                          "diagnostic command registered (no SQL mutations)",
+                          "configuration backend commands registered",
                           "DB_COMMANDS_UNLOADED",
                           "diagnostic hook unloaded",
                           "DB_COMMANDS_LOAD_FAILED",
@@ -51,7 +53,7 @@ int diagnostic(isc::hooks::CalloutHandle& handle) {
                 result->set("configuration-backend-pool-accessible", Element::create(true));
                 result->set("kea-hooks-version", Element::create(KEA_HOOKS_VERSION));
                 result->set("database-connectivity-tested", Element::create(false));
-                result->set("mutations-supported", Element::create(false));
+                result->set("mutations-supported", Element::create(true));
                 response = createAnswer(CONTROL_RESULT_SUCCESS,
                                         "Configuration backend API is accessible.", result);
             }
@@ -71,6 +73,217 @@ int diagnostic(isc::hooks::CalloutHandle& handle) {
         }
     }
 }
+
+int subnet4List(isc::hooks::CalloutHandle& handle) {
+    using namespace isc::data;
+    using namespace isc::config;
+    try {
+        ConstElementPtr command;
+        handle.getArgument("command", command);
+        const auto arguments = command ? command->get("arguments") : ConstElementPtr();
+        ConstElementPtr response;
+        if (!command || (arguments && (arguments->getType() != Element::map ||
+                                       !arguments->mapValue().empty()))) {
+            response = createAnswer(CONTROL_RESULT_ERROR,
+                                    "cb-subnet4-list accepts only absent or empty arguments.");
+        } else {
+            // Resolve current state on every invocation. Kea's pool returns the
+            // first nonempty collection, not an aggregate. Its public API cannot
+            // uniquely select databases sharing a type/host/port, so fail closed.
+            const auto pool = isc::dhcp::ConfigBackendDHCPv4Mgr::instance().getPool();
+            const auto config = isc::dhcp::CfgMgr::instance().getCurrentCfg();
+            const auto control = config->getConfigControlInfo();
+            if (!pool || !control || control->getConfigDatabases().empty()) {
+                response = createAnswer(CONTROL_RESULT_ERROR,
+                                        "No configuration backend is configured.");
+            } else if (control->getConfigDatabases().size() != 1) {
+                response = createAnswer(CONTROL_RESULT_ERROR,
+                                        "cb-subnet4-list requires exactly one configured backend; "
+                                        "multiple backends cannot be listed without ambiguity.");
+            } else {
+                const auto tag = config->getServerTag();
+                const auto selector = tag.empty() ? isc::db::ServerSelector::ALL()
+                                                 : isc::db::ServerSelector::ONE(tag);
+                std::string type;
+                control->getConfigDatabases().front().getParameterValue("type", type);
+                // An explicit type also makes an absent live backend an error
+                // during native recovery instead of a successful empty result.
+                const auto subnets = pool->getAllSubnets4(isc::db::BackendSelector(
+                    isc::db::BackendSelector::stringToBackendType(type)), selector);
+                auto list = Element::createList();
+                bool shared_network = false;
+                for (const auto& subnet : subnets) {
+                    if (!subnet->getSharedNetworkName().empty()) {
+                        shared_network = true;
+                        break;
+                    }
+                    list->add(subnet->toElement());
+                }
+                if (shared_network) {
+                    response = createAnswer(CONTROL_RESULT_ERROR,
+                                            "Shared-network subnets cannot be represented "
+                                            "completely by cb-subnet4-list.");
+                } else {
+                    auto result = Element::createMap();
+                    result->set("subnet4", list);
+                    result->set("server-tag", Element::create(tag.empty() ? "all" : tag));
+                    response = createAnswer(CONTROL_RESULT_SUCCESS,
+                                            "DHCPv4 subnets retrieved.", result);
+                }
+            }
+        }
+        handle.setArgument("response", response);
+        return 0;
+    } catch (...) {
+        // Upstream database exceptions can include connection parameters.
+        try {
+            ConstElementPtr response = createAnswer(
+                CONTROL_RESULT_ERROR, "Configuration backend read failed or unavailable.");
+            handle.setArgument("response", response);
+            return 0;
+        } catch (...) {
+            return 1;
+        }
+    }
+}
+// Only errors raised by our contract checks may be returned verbatim. Native
+// exceptions can contain connection strings and must remain private.
+struct ContractError : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
+isc::data::ConstElementPtr setSubnet(const isc::data::ConstElementPtr& arguments) {
+    using namespace isc::data;
+    using namespace isc::dhcp;
+    using namespace isc::db;
+    if (!arguments || arguments->getType() != Element::map ||
+        arguments->mapValue().size() != 2 || !arguments->get("server-tag") ||
+        !arguments->get("subnet4")) {
+        throw ContractError("Expected only server-tag and one subnet4 map.");
+    }
+    const auto tag_element = arguments->get("server-tag");
+    if (tag_element->getType() != Element::string) {
+        throw ContractError("server-tag must be an explicit string.");
+    }
+    ServerTag tag;
+    try {
+        tag = ServerTag(tag_element->stringValue());
+    } catch (...) {
+        throw ContractError("Invalid server-tag.");
+    }
+    // Avoid implicit tag normalization changing the requested association.
+    if (tag.get() != tag_element->stringValue()) {
+        throw ContractError("server-tag must be lowercase without surrounding whitespace.");
+    }
+    const auto input = arguments->get("subnet4");
+    if (input->getType() != Element::map || input->mapValue().size() != 3 ||
+        !input->get("id") || !input->get("subnet") || !input->get("valid-lifetime")) {
+        throw ContractError("subnet4 supports only required id, subnet and valid-lifetime.");
+    }
+    const auto id = input->get("id");
+    const auto lifetime = input->get("valid-lifetime");
+    if (id->getType() != Element::integer || id->intValue() < 1 ||
+        id->intValue() > SUBNET_ID_MAX || lifetime->getType() != Element::integer ||
+        lifetime->intValue() < 1 || lifetime->intValue() > 4294967294LL) {
+        throw ContractError("id and valid-lifetime must be integers in 1..4294967294.");
+    }
+    const auto prefix = input->get("subnet");
+    if (prefix->getType() != Element::string) {
+        throw ContractError("subnet must be a canonical IPv4 CIDR string.");
+    }
+    Subnet4Ptr subnet;
+    try {
+        const auto text = prefix->stringValue();
+        const auto slash = text.find('/');
+        if (slash == std::string::npos) {
+            throw ContractError("Missing prefix length.");
+        }
+        const auto length_text = text.substr(slash + 1);
+        if (length_text.empty() || length_text.find_first_not_of("0123456789") !=
+                                       std::string::npos) {
+            throw ContractError("Invalid prefix length.");
+        }
+        const auto length = std::stoul(length_text);
+        const isc::asiolink::IOAddress address(text.substr(0, slash));
+        if (!address.isV4() || length > 32 ||
+            isc::asiolink::firstAddrInPrefix(address, length) != address ||
+            text != address.toText() + "/" + std::to_string(length)) {
+            throw ContractError("Noncanonical prefix.");
+        }
+        subnet = Subnet4::create(address, length, 0, 0, lifetime->intValue(), id->intValue());
+    } catch (...) {
+        throw ContractError("subnet must be a canonical IPv4 CIDR string.");
+    }
+    const auto pool = ConfigBackendDHCPv4Mgr::instance().getPool();
+    const auto control = CfgMgr::instance().getCurrentCfg()->getConfigControlInfo();
+    if (!pool || !control || control->getConfigDatabases().size() != 1) {
+        throw ContractError("cb-subnet4-set requires exactly one configured SQL backend.");
+    }
+    std::string type;
+    control->getConfigDatabases().front().getParameterValue("type", type);
+    if (type != "postgresql" && type != "mysql") {
+        throw ContractError("cb-subnet4-set requires a PostgreSQL or MySQL backend.");
+    }
+    const BackendSelector backend(BackendSelector::stringToBackendType(type));
+    // Native getServer4 excludes the schema's reserved universal server.
+    if (!tag.amAll() && !pool->getServer4(backend, tag)) {
+        throw ContractError("server-tag must already exist in the configuration backend.");
+    }
+    // ANY is essential: ONE also includes universal objects and hides objects
+    // belonging to other servers. Prefix conflicts must never rename another ID.
+    const auto existing = pool->getSubnet4(backend, ServerSelector::ANY(), subnet->getID());
+    const auto by_prefix = pool->getSubnet4(backend, ServerSelector::ANY(), subnet->toText());
+    if (by_prefix && by_prefix->getID() != subnet->getID()) {
+        throw ContractError("The prefix already belongs to another subnet ID.");
+    }
+    if (existing) {
+        const auto tags = existing->getServerTags();
+        if (tags.size() != 1 || tags.begin()->get() != tag.get()) {
+            throw ContractError("Updating subnet server associations is unsupported.");
+        }
+        const auto baseline = Subnet4::create(
+            existing->get().first, existing->get().second, 0, 0,
+            existing->getValid(isc::dhcp::Network::Inheritance::NONE), existing->getID());
+        if (!existing->getSharedNetworkName().empty() ||
+            !existing->toElement()->equals(*baseline->toElement())) {
+            throw ContractError("Existing subnet contains unsupported configuration; update refused.");
+        }
+    }
+    // The native backend owns the transaction, audit revision and rollback.
+    // Preflight reads are not locked against independent external writers.
+    pool->createUpdateSubnet4(backend, tag.amAll() ? ServerSelector::ALL()
+                                                : ServerSelector::ONE(tag.get()), subnet);
+    auto result = Element::createMap();
+    result->set("subnet4", input);
+    result->set("server-tag", Element::create(tag.get()));
+    result->set("persisted", Element::create(true));
+    result->set("activation-requested", Element::create(false));
+    return result;
+}
+
+int subnet4Set(isc::hooks::CalloutHandle& handle) {
+    using namespace isc::data;
+    using namespace isc::config;
+    try {
+        ConstElementPtr response;
+        try {
+            ConstElementPtr command;
+            handle.getArgument("command", command);
+            const auto result = setSubnet(command ? command->get("arguments") : ConstElementPtr());
+            response = createAnswer(CONTROL_RESULT_SUCCESS, "DHCPv4 subnet persisted.", result);
+        } catch (const ContractError& error) {
+            response = createAnswer(CONTROL_RESULT_ERROR, error.what());
+        } catch (...) {
+            response = createAnswer(CONTROL_RESULT_ERROR,
+                                    "Configuration backend write failed or unavailable; "
+                                    "reconcile backend state before retrying.");
+        }
+        handle.setArgument("response", response);
+        return 0;
+    } catch (...) {
+        return 1;
+    }
+}
 } // namespace
 
 #define DB_COMMANDS_EXPORT extern "C" __attribute__((visibility("default")))
@@ -86,6 +299,8 @@ DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
             return 1;
         }
         handle.registerCommandCallout("db-commands-diagnostic", diagnostic);
+        handle.registerCommandCallout("cb-subnet4-list", subnet4List);
+        handle.registerCommandCallout("cb-subnet4-set", subnet4Set);
         LOG_INFO(logger, "DB_COMMANDS_LOADED");
         return 0;
     } catch (...) {

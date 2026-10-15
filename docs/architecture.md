@@ -4,8 +4,8 @@
 
 The project is a Linux shared-library hook loaded by unmodified Kea. Commands
 receive native `Element` data through `CalloutHandle`, validate their own request
-contract, and return responses through `isc::config::createAnswer`. Future
-configuration commands will call the daemon's existing configuration backend
+contract, and return responses through `isc::config::createAnswer`. Read-only
+`cb-subnet4-list` calls the daemon's existing configuration backend
 pool. Kea owns SQL factories, connections, schema enforcement, audit records,
 transactions, configuration fetching, and runtime activation.
 
@@ -22,17 +22,22 @@ flowchart LR
     Pull --> Runtime[Active DHCP configuration]
 ```
 
-The diagram shows the intended full path. The current hook stops after obtaining
-the DHCPv4 pool. It neither selects a backend nor executes SQL.
+Both subnet commands use the native DHCPv4 pool and sole configured backend's
+type. PostgreSQL and MariaDB reads and minimal subnet writes are runtime-verified
+with the same hook code. SQL persistence and native pull/reload activation are
+separate operations; the hook never initiates activation.
 
 ## Minimal implementation
 
-`src/diagnostic.cc` contains four exported C entry points and one private command
-callout. `load` checks the process and family, then registers
-`db-commands-diagnostic`. `version` returns the installed header's exact framework
+`src/diagnostic.cc` contains four exported C entry points and three private command
+callouts. `load` checks the process and family, then registers
+`db-commands-diagnostic`, `cb-subnet4-list`, and `cb-subnet4-set`.
+`version` returns the installed header's exact framework
 version. `unload` logs teardown; Kea owns callout deregistration. The stateless
-diagnostic declares multi-threading compatibility; future mutations require a
-separate concurrency review before retaining this declaration.
+hook declares multi-threading compatibility for synchronous main-thread command
+execution, matching the native SQL hooks' assumption. Mutation tests pass with
+packet multithreading enabled and disabled. Independent external writers require
+coordination; no public upstream transaction spans the preflight reads and write.
 
 The command resolves `ConfigBackendDHCPv4Mgr::instance().getPool()` at invocation
 time and holds no pool across reloads. A missing configuration backend is not an
@@ -41,6 +46,25 @@ therefore explicitly says database connectivity was not tested. Exceptions are
 contained at hook boundaries; database exception text is not returned because it
 can contain connection parameters. The hook uses Kea logging and an original
 small message dictionary, with no message-code generator dependency.
+
+The subnet command selects the sole configured backend's type and Kea's active server-tag
+semantics (`ALL` by default, `ONE(tag)` otherwise), then calls
+`getAllSubnets4` and serializes each object with `Subnet4::toElement`.
+Missing matching backends and native exceptions return a generic error; connected
+empty results are successful. Multiple configured backends are rejected because
+the native read pool returns the first nonempty collection rather than merging
+databases. Shared-network subnets are rejected because flat native serialization
+omits membership and inherited settings. Kea owns reconnect callbacks; no hook
+retry loop is introduced. See [the command contract](postgresql.md) and
+[verified upstream behavior](backend-behavior.md).
+
+The set command validates an explicit tag and minimal native subnet, reads by
+ID and prefix using `ANY` to detect hidden conflicts, refuses richer existing
+objects or association changes, and delegates one write to
+`createUpdateSubnet4`. Native drivers own transaction rollback and audit. The
+hook neither issues SQL nor constructs a private backend. Write failures are
+never retried; uncertain commit outcomes require reconciliation. See the
+[exact contract and consistency limits](commands.md).
 
 The build uses upstream `kea.pc` metadata and shared Kea libraries, either from a
 matching installation or Meson's uninstalled build-tree metadata. A configure
@@ -54,7 +78,7 @@ There is no public project header yet: one source file has no reusable project A
 There is no custom `cmake/` module because upstream provides pkg-config metadata.
 These directories should appear only when an actual component needs them.
 
-## Future command invariants
+## Command invariants
 
 - Resolve the current family-specific pool for each operation. Do not retain
   pointers through configuration reloads or initialize a separate manager.
@@ -102,24 +126,45 @@ run succeeds; writing the workflow does not establish compatibility.
 
 ## Implementation roadmap
 
-1. **Complete the release matrix on 3.0.4.** The 3.2.1 diagnostic lifecycle has
-   passed in Debian WSL; 3.0.4 remains source-assessed only. Record compiler, Kea
-   build options, exact headers/runtime, exported symbols, dynamic dependencies, and
-   successful lifecycle tests. Stop and document any visibility or ABI blocker.
-2. **Read-only SQL integration.** Use disposable PostgreSQL and MySQL/MariaDB
-   databases with the matching `kea-admin` schema and upstream SQL hooks. Test
-   absent, disconnected, ambiguous, and tagged backends; verify native pull and
-   effective configuration. Add DHCPv6 manager access and load guards/tests.
-3. **One carefully specified mutation.** Select a single object operation such as
-   subnet create/update only after parser and selector policy is reviewed. Specify
-   the public JSON contract, validation, transaction boundary, audit visibility,
-   conflict/error responses, and explicit activation outcomes. Exercise rollback,
-   connection loss, concurrent writers, and pull failure on both SQL engines.
-4. **Expand by tested object family.** Add deletion, shared networks, options,
+1. **Diagnostic scaffold.** Kea 3.2.1 build and lifecycle verified; Kea 3.0.4
+   remains source-assessed only.
+2. **Native PostgreSQL read integration — verified on Kea 3.2.1.** Implemented
+   `cb-subnet4-list` and an isolated real-PostgreSQL harness covering empty, tagged, unavailable and
+   nonmutating reads in both threading modes. Verification results are recorded
+   in [development](development.md#milestone-2-verification-record).
+   MySQL/MariaDB and DHCPv6 are outside this milestone.
+3. **Read hardening — PostgreSQL verified; MySQL initially blocked.**
+   Complex pools/options/timers/classes, associations, empty selections,
+   multiple-backend rejection, shared-network rejection, duplicate schema IDs,
+   disconnection and automatic native recovery pass in both threading modes.
+   At Milestone 3 completion the opt-in MariaDB harness lacked runtime
+   prerequisites; Milestone 3.5 resolves that blocker. Native SELECT-only startup
+   remains a limitation.
+   See [Milestone 3 results](development.md#milestone-3-verification-record).
+4. **Milestone 3.5: native MariaDB read parity.** The matching unmodified MySQL
+   backend builds and runs against private MariaDB 10.11 instances. Complex reads,
+   tags, ambiguity rejection, nonmutation, native recovery and retry exhaustion
+   are tested in both threading modes. Native initialization requires schema-scoped
+   SELECT/INSERT/UPDATE/DELETE grants; EXECUTE is unnecessary for these reads.
+   PostgreSQL regression retains SELECT-only credentials. See
+   [the verification record](development.md#milestone-35-verification-record).
+   Oracle MySQL needs separate bootstrap support and runtime testing. Shared-network
+   reads still require a complete serialization contract.
+5. **Milestone 4: minimal native subnet create/update — verified.**
+   `cb-subnet4-set` persists ID, prefix, lifetime and one explicit association on
+   both engines. Validation, conflicts, richer-object rejection, late-failure
+   all-table rollback, audit/timestamps, outage errors, native pull/reload and
+   restart persistence pass in both threading modes. Native transactions protect
+   one write; external-writer preflight races and commit-boundary uncertainty
+   remain explicit limitations. No packet allocation or pull-failure proof is
+   claimed. See [the mutation contract](commands.md).
+6. **Expand by tested object family.** Add deletion, shared networks, options,
    option definitions, globals, classes, and server associations only as supported
    by exact upstream APIs. Evaluate documented `cb_cmds` compatibility per command.
-5. **Release discipline.** Maintain exact-release build artifacts and regression
+7. **Release discipline.** Maintain exact-release build artifacts and regression
    gates; add packaging only after dependency and ABI constraints are demonstrated.
 
-The next milestone is completing step 1 on 3.0.4, followed by read-only SQL
-integration. Production database writes remain a later gate.
+The recommended next milestone is a narrowly specified pool extension with real
+DHCP allocation tests and failed-activation recovery tests. Establish an explicit
+deployment policy for coordinating writers before production writes; concurrent
+external writers require stronger upstream transaction or locking support.

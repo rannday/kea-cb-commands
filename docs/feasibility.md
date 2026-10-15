@@ -7,13 +7,15 @@ proprietary hook source or binaries were obtained or inspected.
 
 ## Finding and evidence boundary
 
-**A standalone command hook is feasible at the API and diagnostic level.**
+**A standalone command hook is verified through native PostgreSQL and MariaDB
+subnet reads and minimal subnet create/update on Kea 3.2.1.** See the current
+[Milestone 4 verification record](development.md#milestone-4-verification-record).
 The backend manager header explicitly describes singleton access by command hook
 libraries. Public installed interfaces expose backend reads and writes. Upstream
 builds `kea-dhcpsrv` as a shared library. There is no apparent requirement to patch
 Kea or write SQL independently.
 
-The diagnostic was compiled, linked, and loaded into an unmodified Kea 3.2.1
+In the initial diagnostic milestone, the hook was compiled, linked, and loaded into an unmodified Kea 3.2.1
 DHCPv4 build in Debian WSL. It successfully resolved the manager/pool and passed
 command, unload/reload, and shutdown checks in both threading modes. Dynamic
 symbol inspection confirmed the manager accessor and both families' subnet write
@@ -170,15 +172,49 @@ are registered by the prototype.
 
 ## Unresolved proof obligations
 
+Milestone 2 added a native PostgreSQL read command. Milestone 3 hardens its
+single-backend policy, rejects incomplete shared-network serialization and
+verifies complex data and native recovery. See
+[its contract and limitations](postgresql.md) and the current
+[verification record](development.md#milestone-3-verification-record) and
+[source-level backend review](backend-behavior.md).
+The diagnostic-only record above is historical.
+
+The pinned implementation confirms:
+
+- [`getAllSubnets4`](https://github.com/isc-projects/kea/blob/Kea-3.2.1/src/lib/dhcpsrv/config_backend_pool_dhcp4.cc#L40)
+  delegates to the selected native backend. An explicit missing backend throws;
+  collections use first-nonempty semantics, not a union
+  ([pool implementation](https://github.com/isc-projects/kea/blob/Kea-3.2.1/src/lib/config_backend/base_config_backend_pool.h#L384)).
+- [`tossNonMatchingElements`](https://github.com/isc-projects/kea/blob/Kea-3.2.1/src/hooks/dhcp/pgsql/pgsql_cb_impl.h#L772)
+  implements universal and specific tag filtering. Missing individual objects
+  return null, while collection reads return empty collections.
+- [`Subnet4::toElement`](https://github.com/isc-projects/kea/blob/Kea-3.2.1/src/lib/dhcpsrv/subnet.cc#L785)
+  provides native configuration serialization.
+- The PostgreSQL hook's
+  [threading declaration](https://github.com/isc-projects/kea/blob/Kea-3.2.1/src/hooks/dhcp/pgsql/pgsql_callouts.cc#L140)
+  assumes main-thread calls. The DHCPv4
+  [main loop](https://github.com/isc-projects/kea/blob/Kea-3.2.1/src/bin/dhcp4/dhcp4_srv.cc#L1224)
+  polls command IO synchronously. Our command creates no worker or retained state.
+- Native PostgreSQL errors can include sensitive details and upstream can log
+  them itself; hook command boundaries must catch exceptions before Kea's generic
+  command-manager fallback serializes exception text.
+
 1. Repeat compilation, symbol/dependency inspection, and lifecycle tests on
    3.0.4. Verify matching installed development packages separately; current
    3.2.1 evidence uses upstream's uninstalled shared-library build tree.
 2. Keep exact-release ABI and both-threading-mode lifecycle checks as release
    gates. Resolve any visibility/ABI blocker before adding writes.
-3. Configure each SQL backend through Kea and verify pool selection, schema checks,
-   and read visibility using isolated test databases.
-4. Establish configuration parsing/validation ownership, one-operation transaction
-   boundaries, audit visibility, and activation/failure semantics before exposing
-   a mutation command.
+3. PostgreSQL and MariaDB complex reads, recovery and multiple-backend policy
+   pass on the matching 3.2.1 build. MariaDB retry exhaustion is also verified.
+   Schema mismatch and Oracle MySQL runtime remain untested. Native MySQL
+   write-statement preparation requires write grants even for reads; PostgreSQL's
+   SELECT-only fixture passes. See [runtime results and prerequisites](mysql.md).
+4. Milestone 4 establishes a deliberately minimal native `cb-subnet4-set` contract
+   on both SQL engines: strict validation, one-operation rollback, native audit
+   and timestamps, and activation separate from persistence. Independent-writer
+   races remain unsupported because upstream exposes no transaction spanning
+   preflight and write. See [the mutation contract](commands.md) and
+   [native source evidence](backend-behavior.md#native-subnet-mutations).
 5. Add DHCPv6 parity and regression coverage. The initial source review of 3.0.4
    does not replace compilation and runtime verification on that release.
