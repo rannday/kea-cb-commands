@@ -20,9 +20,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y python3-venv
-          python3 -m venv build-tools
-          build-tools/bin/pip install --require-hashes --only-binary=:all: -r scripts/requirements-quality.txt
-          echo "$GITHUB_WORKSPACE/build-tools/bin" >> "$GITHUB_PATH"
+          python3 -m venv build/quality
+          build/quality/bin/pip install --require-hashes --only-binary=:all: -r scripts/requirements-quality.txt
+          echo "$GITHUB_WORKSPACE/build/quality/bin" >> "$GITHUB_PATH"
       - name: Formatting, lint, documentation and whitespace
         run: python3 scripts/quality.py
       - name: Python unit tests
@@ -47,9 +47,9 @@ jobs:
             libssl-dev libpq-dev libmariadb-dev libmariadb-dev-compat \
             postgresql postgresql-client mariadb-server mariadb-client \
             iproute2 util-linux apparmor binutils
-          python3 -m venv build-tools
-          build-tools/bin/pip install --require-hashes --only-binary=:all: -r scripts/requirements-quality.txt
-          echo "$GITHUB_WORKSPACE/build-tools/bin" >> "$GITHUB_PATH"
+          python3 -m venv build/quality
+          build/quality/bin/pip install --require-hashes --only-binary=:all: -r scripts/requirements-quality.txt
+          echo "$GITHUB_WORKSPACE/build/quality/bin" >> "$GITHUB_PATH"
       - name: Permit user namespaces for the test-only unshare executable
         run: |
           mkdir -p "$RUNNER_TEMP/kea-userns"
@@ -64,19 +64,19 @@ jobs:
           sudo apparmor_parser -r "$RUNNER_TEMP/kea-userns/profile"
           echo "$RUNNER_TEMP/kea-userns" >> "$GITHUB_PATH"
       - name: Build verified upstream Kea 3.2.1 from scratch
-        run: python3 scripts/build_kea.py --work-dir build-upstream --jobs 2 > build-upstream.log 2>&1
+        run: python3 scripts/build_kea.py --work-dir build/upstream --jobs 2 > build/upstream.log 2>&1
       - name: Build hook with warnings as errors and require every integration test
-        run: python3 scripts/integration.py --kea-prefix build-upstream/install --build-dir build-integration --jobs 2
+        run: python3 scripts/integration.py --kea-prefix build/upstream/install --build-dir build/integration --jobs 2
       - name: Install and verify the hook artifact
         run: |
-          cmake --install build-integration --prefix "$PWD/build-stage"
+          cmake --install build/integration --prefix "$PWD/build/stage"
           python3 scripts/verify_artifact.py \
-            --library build-stage/lib/kea/hooks/libdhcp_db_commands.so \
-            --kea-prefix build-upstream/install --forbid-path "$GITHUB_WORKSPACE"
-          LD_LIBRARY_PATH="$PWD/build-upstream/install/lib" python3 -B tests/smoke.py \
-            --server "$PWD/build-upstream/install/sbin/kea-dhcp4" \
-            --hook "$PWD/build-stage/lib/kea/hooks/libdhcp_db_commands.so" \
-            --work-dir "$PWD/build-staged-lifecycle"
+            --library build/stage/lib/kea/hooks/libdhcp_db_commands.so \
+            --kea-prefix build/upstream/install --forbid-path "$GITHUB_WORKSPACE"
+          LD_LIBRARY_PATH="$PWD/build/upstream/install/lib" python3 -B tests/smoke.py \
+            --server "$PWD/build/upstream/install/sbin/kea-dhcp4" \
+            --hook "$PWD/build/stage/lib/kea/hooks/libdhcp_db_commands.so" \
+            --work-dir "$PWD/build/staged-lifecycle"
       - name: Remove test-only AppArmor profile
         if: always()
         run: |
@@ -91,9 +91,9 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
           path: |
-            build-upstream.log
-            build-upstream/toolchain.txt
-            build-upstream/config.report
-            build-upstream/build/meson-logs/meson-log.txt
-            build-integration/ctest-results.xml
-            build-integration/Testing/Temporary/LastTest.log
+            build/upstream.log
+            build/upstream/toolchain.txt
+            build/upstream/config.report
+            build/upstream/build/meson-logs/meson-log.txt
+            build/integration/ctest-results.xml
+            build/integration/Testing/Temporary/LastTest.log

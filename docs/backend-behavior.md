@@ -1,7 +1,8 @@
 # Verified Kea 3.2.1 backend behavior
 
-This review uses the unmodified public `Kea-3.2.1` source under
-`.upstream/kea-Kea-3.2.1`. Paths and line numbers below refer to that release.
+This review uses the unmodified public `Kea-3.2.1` source. The clean-build guide
+places it under `build/upstream/source`; paths and line numbers below refer to
+that release.
 Source inspection and runtime evidence are distinguished explicitly. Kea 3.0.4
 has not been SQL-runtime-tested. No proprietary hook source is used.
 

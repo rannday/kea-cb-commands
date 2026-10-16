@@ -12,9 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     files = [ROOT / name for name in (
-        "README.md", "CMakeLists.txt", ".clang-format", "pyproject.toml", ".gitignore"
+        "README.md", "AGENTS.md", "CMakeLists.txt", ".clang-format", "pyproject.toml",
+        ".gitignore", ".editorconfig", ".gitattributes", ".serena/project.yml"
     )]
-    for directory in ("src", "tests", "scripts", "docs", ".github"):
+    for directory in ("src", "tests", "scripts", "docs", ".github", ".agents/skills"):
         files.extend(p for p in (ROOT / directory).rglob("*")
                      if p.is_file() and p.suffix in {".cc", ".h", ".py", ".md", ".yml", ".json", ".txt"}
                      and "__pycache__" not in p.parts)

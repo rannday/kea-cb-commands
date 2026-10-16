@@ -9,7 +9,7 @@ proprietary hook source or binaries were obtained or inspected.
 
 **A standalone command hook is verified through native PostgreSQL and MariaDB
 subnet reads and minimal subnet create/update on Kea 3.2.1.** See the current
-[Milestone 4 verification record](development.md#milestone-4-verification-record).
+[Milestone 4 verification record](development-history.md#milestone-4-verification-record).
 The backend manager header explicitly describes singleton access by command hook
 libraries. Public installed interfaces expose backend reads and writes. Upstream
 builds `kea-dhcpsrv` as a shared library. There is no apparent requirement to patch
@@ -22,7 +22,7 @@ symbol inspection confirmed the manager accessor and both families' subnet write
 wrappers in the built shared `kea-dhcpsrv`. No SQL operation was executed. This
 does not establish SQL behavior, installed-package completeness, DHCPv6 runtime
 compatibility, or compatibility with 3.0.4. See the
-[verification record](development.md#initialization-verification-record).
+[verification record](development-history.md#initialization-verification-record).
 
 ## Release and language baseline
 
@@ -176,7 +176,7 @@ Milestone 2 added a native PostgreSQL read command. Milestone 3 hardens its
 single-backend policy, rejects incomplete shared-network serialization and
 verifies complex data and native recovery. See
 [its contract and limitations](postgresql.md) and the current
-[verification record](development.md#milestone-3-verification-record) and
+[verification record](development-history.md#milestone-3-verification-record) and
 [source-level backend review](backend-behavior.md).
 The diagnostic-only record above is historical.
 

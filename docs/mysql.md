@@ -31,29 +31,24 @@ Inspect installed packages before installing anything. Package installation must
 not start or enable a persistent database service; the harness starts its own
 unprivileged server. No package installation was needed for Milestone 3.5.
 
-Reuse the existing unmodified source and build directories. With this checkout's
-local Meson 1.12.1 runner:
+The [verified-source build](reproducible-builds.md#clean-build) already enables
+both SQL backends and installs the matching daemon, hooks and shared libraries
+under `build/upstream/install`. Keep all components on the same source tag,
+compiler ABI and shared-library build. The release source reports `3.2.1-git`;
+the exact hook framework version is `30201`. Neither Kea 3.0.4 nor a mixed
+installed/build-tree ABI is covered. Earlier uninstalled build instructions are
+retained in [development history](development-history.md).
+
+For full coverage, use the strict runner in the build guide. For focused reruns:
 
 ```sh
-python3 .upstream/meson-1.12.1/meson.py configure build-kea-3.2.1 -Dmysql=enabled
-ninja -C build-kea-3.2.1 -j 2 \
-  src/hooks/dhcp/mysql/libdhcp_mysql.so \
-  src/bin/dhcp4/kea-dhcp4 \
-  src/hooks/dhcp/pgsql/libdhcp_pgsql.so \
-  src/lib/d2srv/libkea-d2srv.so
+ctest --test-dir build/integration -L MySQL --output-on-failure
 ```
-
-This uses Kea's supported Meson option, without modifying upstream source or
-installing Kea. Enabling MySQL changes generated headers, so Ninja may rebuild
-required core dependencies. Keep the daemon, both native hooks and this hook on
-the same source tag, compiler ABI and shared-library build. Build-tree pkg-config
-reports `3.2.1-git`; the exact hook framework version is `30201`. Neither Kea
-3.0.4 nor a mixed installed/build-tree ABI is covered.
 
 Enable the opt-in CMake test with explicit matching paths:
 
 ```sh
-cmake -S . -B build \
+cmake -S . -B build/hook \
   -DKEA_DB_COMMANDS_MYSQL_TESTS=ON \
   -DKEA_DHCP4_EXECUTABLE=/path/to/kea-dhcp4 \
   -DKEA_MYSQL_CLIENT=/usr/bin/mariadb \
@@ -61,12 +56,12 @@ cmake -S . -B build \
   -DKEA_MYSQL_INSTALL_DB=/usr/bin/mariadb-install-db \
   -DKEA_MYSQL_HOOK=/path/to/libdhcp_mysql.so \
   -DKEA_MYSQL_SCHEMA=/path/to/kea-3.2.1/src/share/database/scripts/mysql/dhcpdb_create.mysql
-cmake --build build
-ctest --test-dir build -R mysql --output-on-failure
+cmake --build build/hook
+ctest --test-dir build/hook -R mysql --output-on-failure
 ```
 
 For an uninstalled Kea build, prefix the configure command with
-`PKG_CONFIG_PATH="$PWD/build-kea-3.2.1/meson-uninstalled"`. If MySQL was enabled
+`PKG_CONFIG_PATH="$PWD/build/upstream/build/meson-uninstalled"`. If MySQL was enabled
 after this project's first configure, add `-U__pkg_config_checked_KEA` to refresh
 CMake's cached pkg-config metadata. Otherwise the staged native hook may fail to
 find `libkea-mysql.so`. CTest supplies the matching library directories through
@@ -74,7 +69,7 @@ its process-local `LD_LIBRARY_PATH`; no system loader configuration is changed.
 Direct Python invocation needs those same matching library directories.
 
 `KEA_DB_COMMANDS_MYSQL_TESTS=ON` registers the test with CTest's `MySQL` label;
-`ctest --test-dir build -L MySQL --output-on-failure` selects that label.
+`ctest --test-dir build/hook -L MySQL --output-on-failure` selects that label.
 
 The harness can also run directly:
 
@@ -87,7 +82,7 @@ python3 tests/mysql.py \
   --mysql-bin /usr/bin/mariadb \
   --mysql-install-db /usr/bin/mariadb-install-db \
   --mysql-server /usr/sbin/mariadbd \
-  --work-dir /tmp/kea-mysql-tests
+  --work-dir build/mysql-tests
 ```
 
 `--mysql-bin` names the client executable, not its directory. Missing files or
@@ -228,7 +223,7 @@ DISCOVER/OFFER/REQUEST/ACK and persisted memfile leases. The test does not use a
 SQL lease backend; SQL manages the subnet/pools and Kea records the lease in
 its own memfile. Native pull, replacement/reload, restart and empty-pool checks
 separate persistence from activation and allocation. Failed activation does not
-roll back SQL. See [build and namespace prerequisites](development.md#milestone-5-pool-and-packet-verification).
+roll back SQL. See [build and namespace prerequisites](development-history.md#milestone-5-pool-and-packet-verification).
 
 Milestone 5 pool mutations and real DHCP packet checks passed against MariaDB
 10.11.19 in both threading modes; [the pool verification record](pools.md)

@@ -2,7 +2,8 @@
 
 ## Review before mutation changes
 
-The pinned, unmodified `.upstream/kea-Kea-3.2.1` source is authoritative.
+The pinned, unmodified Kea source is authoritative; the clean-build guide places
+it under `build/upstream/source`.
 Both `PgSqlConfigBackendDHCPv4Impl::createUpdateSubnet4`
 (`src/hooks/dhcp/pgsql/pgsql_cb_dhcp4.cc:966–1040`) and its MySQL counterpart
 (`src/hooks/dhcp/mysql/mysql_cb_dhcp4.cc:1103–1160`) start a native transaction,

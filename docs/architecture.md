@@ -147,7 +147,7 @@ workflow does not establish compatibility. See [the build guide](reproducible-bu
 2. **Native PostgreSQL read integration — verified on Kea 3.2.1.** Implemented
    `cb-subnet4-list` and an isolated real-PostgreSQL harness covering empty, tagged, unavailable and
    nonmutating reads in both threading modes. Verification results are recorded
-   in [development](development.md#milestone-2-verification-record).
+   in [development](development-history.md#milestone-2-verification-record).
    MySQL/MariaDB and DHCPv6 are outside this milestone.
 3. **Read hardening — PostgreSQL verified; MySQL initially blocked.**
    Complex pools/options/timers/classes, associations, empty selections,
@@ -156,14 +156,14 @@ workflow does not establish compatibility. See [the build guide](reproducible-bu
    At Milestone 3 completion the opt-in MariaDB harness lacked runtime
    prerequisites; Milestone 3.5 resolves that blocker. Native SELECT-only startup
    remains a limitation.
-   See [Milestone 3 results](development.md#milestone-3-verification-record).
+   See [Milestone 3 results](development-history.md#milestone-3-verification-record).
 4. **Milestone 3.5: native MariaDB read parity.** The matching unmodified MySQL
    backend builds and runs against private MariaDB 10.11 instances. Complex reads,
    tags, ambiguity rejection, nonmutation, native recovery and retry exhaustion
    are tested in both threading modes. Native initialization requires schema-scoped
    SELECT/INSERT/UPDATE/DELETE grants; EXECUTE is unnecessary for these reads.
    PostgreSQL regression retains SELECT-only credentials. See
-   [the verification record](development.md#milestone-35-verification-record).
+   [the verification record](development-history.md#milestone-35-verification-record).
    Oracle MySQL needs separate bootstrap support and runtime testing. Shared-network
    reads still require a complete serialization contract.
 5. **Milestone 4: minimal native subnet create/update — verified.**

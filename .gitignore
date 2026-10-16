@@ -1,8 +1,11 @@
-/build*/
+/build/
+# Legacy Kea installation retained until a replacement is verified.
+/build-*/
 /build*.log
 /.local/
 /.upstream/
 /.ruff_cache/
+/.cache/
 __pycache__/
 *.py[cod]
 /CMakeUserPresets.json

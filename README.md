@@ -1,76 +1,88 @@
 # Kea Database Commands
 
-An independent, MPL-2.0 native C++ hook project for managing ISC Kea SQL
-configuration backends through Kea commands. It targets unmodified upstream Kea
-on Linux and reuses its PostgreSQL and MySQL/MariaDB backend implementations and
-schema. It has no dependency on another repository, custom distribution, or Docker.
+An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets in ISC Kea's
+SQL configuration backend. It targets **unmodified Kea 3.2.1 on Linux** and uses
+Kea's native PostgreSQL and MySQL/MariaDB backend APIs and schema. It requires
+no custom Kea distribution, proprietary hooks or Docker.
 
-**Status: native DHCPv4 subnet list/get/set/delete target Kea 3.2.1,
-PostgreSQL 15 and MariaDB 10.11.**
-`cb-subnet4-list` reads through Kea's existing configuration backend interfaces
-and returns native subnet configuration. `cb-subnet4-set` persists one minimal
-standalone subnet and basic IPv4 address pools through those same interfaces,
-without activating them. Omitted `pools` preserves stored basic pools; an explicit
-list replaces them, including an empty list to remove all pools.
-`cb-subnet4-get` retrieves one native subnet by ID or prefix. `cb-subnet4-del`
-deletes one standalone, singly associated subnet using an explicit server tag
-and `preserve-leases: true`. Deletion retains leases and requires separate native
-activation; it never reloads or restarts Kea. Avoid ID/prefix reuse while retained
-leases could conflict. See [lifecycle safety and upstream findings](docs/subnet-lifecycle.md).
-See the [mutation command contract](docs/commands.md), including its required
-exclusive-writer policy, and [PostgreSQL integration](docs/postgresql.md)
-for setup, the command contract and verified complex fields;
-[backend behavior](docs/backend-behavior.md) for selection, recovery and upstream
-evidence; and [MySQL/MariaDB](docs/mysql.md) for reproducible native builds,
-isolated tests and verified privilege requirements. MariaDB requires write grants
-to prepare native statements even though listing performs no writes;
-PostgreSQL supports the tested SELECT-only account. Oracle MySQL is unverified.
-The list command requires one configured backend, accepts only absent or empty
-arguments, and rejects shared-network subnets to avoid incomplete results.
-Commercial `cb_cmds` compatibility, shared-network management, option mutations and DHCPv6
-are not implemented. See [pool behavior and packet verification](docs/pools.md)
-for pinned upstream evidence and the verification record. Real DORA exchanges
-and recorded leases passed on PostgreSQL and MariaDB with threading on and off.
+PostgreSQL 15 and MariaDB 10.11 are integration-tested, including real DHCP
+allocation with packet multithreading enabled and disabled. Oracle MySQL is
+unverified. Build against the exact Kea installation that will load the hook;
+compatibility with other Kea versions is not established.
 
-Initial build candidates are **Kea 3.2.1** (first target) and **3.0.4 LTS**
-(second target, source-assessed only). Build a separate artifact against
-each exact Kea installation; even a patch release changes the hook version check.
-The prototype accepts DHCPv4 only. The design includes DHCPv6 as a later milestone.
+## Commands
 
-## Quick start
+| Command | Purpose |
+| --- | --- |
+| `cb-subnet4-list` | List native subnet configuration; accepts absent or empty arguments |
+| `cb-subnet4-get` | Retrieve one subnet by ID or canonical IPv4 prefix |
+| `cb-subnet4-set` | Persist one minimal standalone subnet and optional basic address pools |
+| `cb-subnet4-del` | Delete one subnet with an explicit tag and `preserve-leases: true` |
+| `db-commands-diagnostic` | Check backend pool API accessibility without testing database connectivity |
 
-Use Linux or Debian WSL2. Install prerequisites and build shared-library Kea with
-the exact instructions in [reproducible builds](docs/reproducible-builds.md). Do not link against
-Windows/MSYS2 Kea libraries or a static copy of Kea.
+See the exact [get/set/delete contracts](docs/commands.md) and
+[list contract](docs/postgresql.md#command-contract) before using them.
+The hook requires one configured backend. It does not implement commercial
+`cb_cmds` compatibility, shared-network management, option mutations or DHCPv6.
 
-For a lifecycle smoke test with a matching Kea installation at an isolated prefix:
+## Build and install
+
+Use native Linux or Debian WSL2 with a C++14 compiler, CMake/CTest, pkg-config
+and matching shared Kea libraries and development headers. SQL integration also
+requires Kea's upstream SQL hooks and schemas. The
+[build guide](docs/reproducible-builds.md) lists exact prerequisites and commands
+for a verified-source Kea build with both backends.
+
+For an existing matching installed prefix (the clean-build guide uses
+`build/upstream/install`):
 
 ```bash
-export KEA_PREFIX="$PWD/.local/kea/3.2.1"
-export PKG_CONFIG_PATH="$KEA_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-export LD_LIBRARY_PATH="$KEA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export KEA_PREFIX="$PWD/build/upstream/install"
+export PKG_CONFIG_PATH="$KEA_PREFIX/lib/pkgconfig"
+export LD_LIBRARY_PATH="$KEA_PREFIX/lib"
 export PATH="$KEA_PREFIX/sbin:$KEA_PREFIX/bin:$PATH"
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
-  -DKEA_DB_COMMANDS_RUNTIME_TESTS=ON
-cmake --build build --parallel 2
-ctest --test-dir build --output-on-failure
+cmake -S . -B build/hook -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$KEA_PREFIX" \
+  -DCMAKE_INSTALL_LIBDIR=lib -DKEA_DB_COMMANDS_RUNTIME_TESTS=ON
+cmake --build build/hook --parallel 2
+ctest --test-dir build/hook --output-on-failure
+cmake --install build/hook
 ```
 
-For the full six-test acceptance gate, use `scripts/integration.py` as documented
-in the build guide. It requires both databases and isolated networking and fails
-if any expected integration test is skipped.
+This produces `build/hook/libdhcp_db_commands.so` and installs it under
+`$KEA_PREFIX/lib/kea/hooks/`. Choose an installation prefix writable by your
+installation process. Do not mix Windows/MSYS2 libraries or statically embedded
+Kea with a Linux daemon. The build guide covers full SQL/DHCP acceptance and
+export/dependency verification; the commands above run lifecycle coverage only.
 
-The output is `build/libdhcp_db_commands.so`. To load it in a test DHCPv4
-configuration, add its **absolute Linux path** to the existing `Dhcp4` object:
+## Configure and use
+
+Configure Kea's native SQL backend as described in
+[PostgreSQL setup](docs/postgresql.md#configure-kea) or
+[MariaDB setup](docs/mysql.md). Load the matching upstream SQL hook before this
+hook. For example, add these entries to the existing `Dhcp4` configuration,
+using absolute paths inside Kea's permitted hook directory:
 
 ```json
 "hooks-libraries": [
-  { "library": "/absolute/path/build/libdhcp_db_commands.so" }
+  { "library": "/absolute/kea/lib/kea/hooks/libdhcp_pgsql.so" },
+  { "library": "/absolute/kea/lib/kea/hooks/libdhcp_db_commands.so" }
 ]
 ```
 
-Send `{"command":"db-commands-diagnostic"}` over the configured native control
-channel. A successful response has `result: 0` and these `arguments`:
+Use `libdhcp_mysql.so` for MariaDB. The native hook registers the backend;
+Kea's `config-control` settings establish the connection. This hook does not
+create a backend or read credentials. Both modules must match the daemon's ABI.
+
+Send requests through Kea's configured native control channel:
+
+```json
+{"command": "cb-subnet4-get", "arguments": {"id": 123}}
+```
+
+For a connection-independent load check, send
+`{"command":"db-commands-diagnostic"}`. A successful response has `result: 0`
+and these arguments:
 
 ```json
 {
@@ -81,29 +93,35 @@ channel. A successful response has `result: 0` and these `arguments`:
 }
 ```
 
-The hook version is `30004` when built for 3.0.4. Pool accessibility proves access
-to the server's backend manager API; it does not prove a database is configured or
-reachable. Arguments may be absent or an empty object. Other arguments return an
-error. The command returns no credentials or configuration data.
+Diagnostic arguments may be absent or empty; other arguments return an error.
+It returns no credentials or configuration data. Success establishes access to
+the backend manager API, not a configured or reachable database.
 
-## Project contents
+## Operational limits
 
-- [Feasibility and upstream evidence](docs/feasibility.md)
-- [Architecture and implementation roadmap](docs/architecture.md)
-- [Development, prerequisites, and verification](docs/development.md)
-- [Verified-source builds, pinned quality tools, CI and artifact checks](docs/reproducible-builds.md)
-- [PostgreSQL setup and integration tests](docs/postgresql.md)
-- [Subnet and pool mutation contract and activation](docs/commands.md)
-- [Verified backend selection, selectors and recovery](docs/backend-behavior.md)
-- [MySQL/MariaDB prerequisites and isolated test](docs/mysql.md)
-- `src/diagnostic.cc`: hook lifecycle, registration and logging
-- `src/commands.{cc,h}`: diagnostic and subnet command callouts, responses and error containment
-- `src/arguments.{cc,h}`: selector validation, native subnet/pool construction and contract errors
-- `src/subnet4.{cc,h}`: native backend selection and subnet list/get/set/delete operations
-- [Pool persistence and isolated DHCP packet tests](docs/pools.md)
-- `tests/`: transport, real-Kea lifecycle, isolated PostgreSQL/MySQL and DHCP tests
-- `.github/workflows/ci.yml`: Ubuntu 24.04 quality and strict integration gates;
-  CI execution remains unverified
+Persistence and activation are separate. Writes never pull configuration,
+reload or restart Kea; use explicit native activation afterward. Deletion retains
+leases, so avoid ID/prefix reuse while retained leases could conflict.
+Follow the required exclusive-writer policy and reconcile uncertain write outcomes
+before retrying. See [lifecycle safety](docs/subnet-lifecycle.md) and
+[mutation consistency](docs/commands.md).
 
-Original code is licensed under [MPL-2.0](LICENSE). This project is independent of
-ISC and does not use proprietary hook source or binaries.
+Set supports minimal standalone subnets and basic IPv4 ranges. Omitted pools
+preserve stored basic pools; supplied pools replace them, and an empty list
+clears them. Richer existing objects and unsafe server associations are rejected.
+List rejects shared-network subnets to avoid incomplete results.
+MariaDB needs write grants to prepare native statements even for list operations;
+PostgreSQL supports the tested SELECT-only account.
+
+## Documentation
+
+- [Command contracts and explicit activation](docs/commands.md)
+- [PostgreSQL setup and coverage](docs/postgresql.md) and [MariaDB setup and coverage](docs/mysql.md)
+- [Backend selection, tags and recovery](docs/backend-behavior.md)
+- [Pool semantics and packet verification](docs/pools.md)
+- [Architecture](docs/architecture.md) and [upstream feasibility evidence](docs/feasibility.md)
+- [Development and output layout](docs/development.md)
+- [Reproducible builds, quality, CI and acceptance](docs/reproducible-builds.md)
+
+Original code is licensed under [MPL-2.0](LICENSE). This project is independent
+of ISC and does not use proprietary hook source or binaries.

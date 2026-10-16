@@ -108,23 +108,19 @@ the distribution version used for this test, not a hook-specific requirement.
 Install missing packages yourself; tests never install packages, change system
 configuration, start persistent services, or touch the distribution's cluster.
 
-Build matching upstream Kea with PostgreSQL enabled, as in
-[development](development.md). Build the DHCPv4 daemon, PostgreSQL hook and any
-libraries named by upstream's `kea.pc`. From this Linux checkout:
+Build the matching installed Kea prefix with both SQL backends as described in
+[reproducible builds](reproducible-builds.md). From this Linux checkout, run the
+strict full gate, then select PostgreSQL tests for focused reruns:
 
 ```bash
-export PKG_CONFIG_PATH="$PWD/build-kea-3.2.1/meson-uninstalled"
-cmake -S . -B build-native -DCMAKE_BUILD_TYPE=Debug \
-  -DKEA_DB_COMMANDS_RUNTIME_TESTS=ON \
-  -DKEA_DB_COMMANDS_POSTGRESQL_TESTS=ON \
-  -DKEA_DHCP4_EXECUTABLE="$PWD/build-kea-3.2.1/src/bin/dhcp4/kea-dhcp4" \
-  -DKEA_POSTGRESQL_HOOK="$PWD/build-kea-3.2.1/src/hooks/dhcp/pgsql/libdhcp_pgsql.so" \
-  -DKEA_POSTGRESQL_SCHEMA="$PWD/.upstream/kea-Kea-3.2.1/src/share/database/scripts/pgsql/dhcpdb_create.pgsql" \
-  -DKEA_POSTGRESQL_BIN_DIR=/usr/lib/postgresql/15/bin
-cmake --build build-native --parallel 2
-ctest --test-dir build-native --output-on-failure
-ctest --test-dir build-native -L PostgreSQL --output-on-failure
+python3 -B scripts/integration.py --kea-prefix build/upstream/install \
+  --build-dir build/integration --jobs 2
+ctest --test-dir build/integration -L PostgreSQL --output-on-failure
 ```
+
+For an existing local prefix, follow the incremental migration example in
+[development](development.md#generated-output-layout). Earlier uninstalled
+build-tree commands are retained in [development history](development-history.md).
 
 CTest supplies `LD_LIBRARY_PATH` from the matching `kea.pc` library directories
 for the SQL test only. This preserves dependency lookup when upstream's module,
@@ -256,7 +252,7 @@ DISCOVER/OFFER/REQUEST/ACK and persisted memfile leases. The test does not use a
 SQL lease backend; SQL manages the subnet/pools and Kea records the lease in
 its own memfile. Native pull, replacement/reload, restart and empty-pool checks
 separate persistence from activation and allocation. Failed activation does not
-roll back SQL. See [build and namespace prerequisites](development.md#milestone-5-pool-and-packet-verification).
+roll back SQL. See [build and namespace prerequisites](development-history.md#milestone-5-pool-and-packet-verification).
 
 Milestone 5 pool mutations and real DHCP packet checks passed against PostgreSQL
 15.19 in both threading modes; [the pool verification record](pools.md)

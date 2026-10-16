@@ -62,17 +62,20 @@ Debian 12 uses the same package names. Local verification uses Debian 12; CI is
 configured for Ubuntu 24.04. No local system packages are installed by the build
 scripts. The scripts detect missing dependencies and fail with diagnostics.
 
+For output layout and safe reuse of an existing Kea installation, see
+[local development](development.md#generated-output-layout).
+
 ## Clean build
 
 Run from the checkout on a Linux filesystem, including Debian WSL2:
 
 ```bash
-python3 -m venv build-tools
-build-tools/bin/pip install --require-hashes --only-binary=:all: \
+python3 -m venv build/quality
+build/quality/bin/pip install --require-hashes --only-binary=:all: \
   -r scripts/requirements-quality.txt
-export PATH="$PWD/build-tools/bin:$PATH"
-python3 scripts/build_kea.py --work-dir build-upstream --jobs 2 \
-  > build-upstream.log 2>&1
+export PATH="$PWD/build/quality/bin:$PATH"
+python3 scripts/build_kea.py --work-dir build/upstream --jobs 2 \
+  > build/upstream.log 2>&1
 ```
 
 The pinned wheels target Linux x86-64. Other architectures need separately
@@ -80,7 +83,7 @@ reviewed wheel hashes. Meson 1.7.2, clang-format 18.1.8 and Ruff 0.11.13 are
 pinned with hashes. No compiler/build cache is used. Choose another fresh work
 directory for a second build; failure evidence is retained rather than erased.
 
-Kea is installed privately under `build-upstream/install`, with shared libraries
+Kea is installed privately under `build/upstream/install`, with shared libraries
 under `lib`. Both SQL backends and OpenSSL are enabled. Upstream unit tests,
 fuzzing, Kerberos and NETCONF are disabled. Kea's build does not provide a simple
 DHCPv4-only component selection; the default server/tool targets are built. This
@@ -96,11 +99,11 @@ receive updates; their resolved versions must be reviewed when diagnosing drift.
 ## Local quality and full integration
 
 ```bash
-python3 scripts/quality.py
+PATH="$PWD/build/quality/bin:$PATH" python3 -B scripts/quality.py
 python3 -B -m unittest discover -s tests -p 'test_*.py' -v
 python3 -B -m unittest discover -s scripts -p 'test_*.py' -v
-python3 scripts/integration.py --kea-prefix build-upstream/install \
-  --build-dir build-integration --jobs 2
+python3 scripts/integration.py --kea-prefix build/upstream/install \
+  --build-dir build/integration --jobs 2
 ```
 
 The strict runner selects only that prefix's Kea metadata and shared libraries,
@@ -165,14 +168,14 @@ has not been exercised by the local Debian run.
 ## Shared-library verification and compatibility
 
 ```bash
-cmake --install build-integration --prefix "$PWD/build-stage"
+cmake --install build/integration --prefix "$PWD/build/stage"
 python3 scripts/verify_artifact.py \
-  --library build-stage/lib/kea/hooks/libdhcp_db_commands.so \
-  --kea-prefix build-upstream/install --forbid-path "$PWD"
-LD_LIBRARY_PATH="$PWD/build-upstream/install/lib" python3 -B tests/smoke.py \
-  --server "$PWD/build-upstream/install/sbin/kea-dhcp4" \
-  --hook "$PWD/build-stage/lib/kea/hooks/libdhcp_db_commands.so" \
-  --work-dir "$PWD/build-staged-lifecycle"
+  --library build/stage/lib/kea/hooks/libdhcp_db_commands.so \
+  --kea-prefix build/upstream/install --forbid-path "$PWD"
+LD_LIBRARY_PATH="$PWD/build/upstream/install/lib" python3 -B tests/smoke.py \
+  --server "$PWD/build/upstream/install/sbin/kea-dhcp4" \
+  --hook "$PWD/build/stage/lib/kea/hooks/libdhcp_db_commands.so" \
+  --work-dir "$PWD/build/staged-lifecycle"
 ```
 
 The verifier checks the filename, `load`, `unload`, `version` and

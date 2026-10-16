@@ -96,7 +96,7 @@ def kea_environment(prefix):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kea-prefix", required=True, type=Path)
-    parser.add_argument("--build-dir", default=Path("build-integration"), type=Path)
+    parser.add_argument("--build-dir", default=Path("build/integration"), type=Path)
     parser.add_argument("--jobs", default=2, type=int)
     args = parser.parse_args()
     if args.jobs < 1:

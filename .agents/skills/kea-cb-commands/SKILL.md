@@ -31,14 +31,16 @@ checks before editing. Helpers in `tests/mutation.py`, `tests/lifecycle.py` and
 Run commands from the repository root. Follow the build guide for a fresh
 environment. For reuse, inspect the chosen `CMakeCache.txt`: headers, libraries,
 daemon, SQL hooks and schemas must all belong to the same Kea installation.
-The existing local setup uses `build-repro-clean/install` and `build-m7`.
-Recheck their availability and cached paths before using these examples.
+Use `build/quality` for pinned tools, `build/upstream/install` for a fresh Kea
+installation and `build/integration` for the full gate. For an existing prefix,
+follow the [incremental migration](../../../docs/development.md#generated-output-layout)
+example; do not relocate installed metadata or cached builds.
 
 For implementation changes with that configured build:
 
 ```bash
-cmake --build build-m7 --parallel 2
-ctest --test-dir build-m7 --parallel 1 --output-on-failure
+cmake --build build/integration --parallel 2
+ctest --test-dir build/integration --parallel 1 --output-on-failure
 ```
 
 CTest registers transport by default. Real lifecycle, SQL and DHCP tests depend
@@ -48,9 +50,9 @@ Use the strict runner below to configure all four and refresh Kea discovery.
 
 ## Choose validation by subsystem
 
-- Documentation only: check Markdown, relative links and whitespace; no C++ or
-  database run is needed. `scripts/quality.py` does not scan root `AGENTS.md` or
-  `.agents/skills/`, so check guidance files explicitly when they change.
+- Documentation only: run the quality gate for Markdown, relative links and
+  whitespace, including `AGENTS.md` and `.agents/skills/`; no C++ or database
+  run is needed.
 - Transport or Python tooling: run the relevant existing unit suite:
 
   ```bash
@@ -63,8 +65,8 @@ Use the strict runner below to configure all four and refresh Kea discovery.
 
   ```bash
   python3 -B scripts/verify_artifact.py \
-    --library build-m7/libdhcp_db_commands.so \
-    --kea-prefix build-repro-clean/install --forbid-path "$PWD"
+    --library build/integration/libdhcp_db_commands.so \
+    --kea-prefix build/upstream/install --forbid-path "$PWD"
   ```
 
 - Command parsing, replies, backend selection, tags or CRUD: exercise both SQL
@@ -75,14 +77,14 @@ Use the strict runner below to configure all four and refresh Kea discovery.
 Run the combined quality gate with the existing private tool environment:
 
 ```bash
-PATH="$PWD/build-quality-venv/bin:$PATH" python3 -B scripts/quality.py
+PATH="$PWD/build/quality/bin:$PATH" python3 -B scripts/quality.py
 ```
 
-For full SQL and packet acceptance with the existing local installation:
+For full SQL and packet acceptance with the selected installation:
 
 ```bash
-python3 -B scripts/integration.py --kea-prefix build-repro-clean/install \
-  --build-dir build-m7 --jobs 2
+python3 -B scripts/integration.py --kea-prefix build/upstream/install \
+  --build-dir build/integration --jobs 2
 ```
 
 This configures and builds the hook, runs CTest serially, validates JUnit results

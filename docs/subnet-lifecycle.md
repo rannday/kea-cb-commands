@@ -71,7 +71,7 @@ activation coordination and client renewal behavior are not runtime-tested here.
 Run the complete gate against a matching Kea installation:
 
 ```sh
-python3 -B scripts/integration.py --kea-prefix build-repro-clean/install --build-dir build-m7 --jobs 2
+python3 -B scripts/integration.py --kea-prefix build/upstream/install --build-dir build/integration --jobs 2
 python3 -B -m unittest discover -s tests -p 'test_*.py'
 ```
 

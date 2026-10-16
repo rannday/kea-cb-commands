@@ -65,7 +65,9 @@ and [subnet lifecycle](docs/subnet-lifecycle.md) for the detailed rationale.
 ## Build and verification map
 
 [Reproducible builds](docs/reproducible-builds.md) is the current build and
-acceptance guide; [development](docs/development.md) covers local setup.
+acceptance guide; [development](docs/development.md) covers local setup and the
+canonical `build/` output layout (`quality`, `upstream`, `hook`, `integration`,
+`stage`). Existing installed prefixes may be reused without relocation.
 `scripts/quality.py` combines formatting, lint, whitespace and local-link checks;
 `scripts/integration.py` builds and requires all six CTest tests without skips.
 `scripts/verify_artifact.py` checks exports and matching shared dependencies.
