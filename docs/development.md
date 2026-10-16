@@ -2,6 +2,7 @@
 
 Use [reproducible builds](reproducible-builds.md) for prerequisites, the pinned
 Kea source/tool environment, full acceptance commands, CI and artifact checks.
+Use [C++ tooling](cpp-tooling.md) for Zed/clangd and local static analysis.
 The [architecture](architecture.md#implementation-layout) describes module
 ownership; [command contracts](commands.md) define behavior before implementation.
 Earlier setup instructions and execution records are preserved in

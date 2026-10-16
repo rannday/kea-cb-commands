@@ -1,0 +1,9 @@
+CompileFlags:
+  CompilationDatabase: build/integration
+---
+If:
+  PathMatch: src/diagnostic\.cc
+Diagnostics:
+  ClangTidy:
+    # Failure logging must not throw through the Kea lifecycle boundary.
+    Remove: bugprone-empty-catch
