@@ -523,3 +523,28 @@ SQL write intact. Recovery consists of correcting activation prerequisites and
 explicitly activating again; the hook performs no automatic rollback. Temporary
 servers, private database clusters, credentials, leases and namespace resources
 are removed by the fixture cleanup paths.
+
+## Milestone 7 lifecycle verification
+
+On 2026-10-15, the fresh `build-m7` Release build against unmodified Kea 3.2.1
+passed with compiler warnings treated as errors. The complete integration gate
+passed **6 tests, 0 failures, 0 skips in 395.32 seconds**, using PostgreSQL 15.19
+and MariaDB 10.11.19. Both engines ran get/delete, rollback, audit/timestamp,
+association, shared-network rejection and isolated DHCP checks with threading
+disabled and enabled. All temporary integration resource directories were empty
+after cleanup. See [lifecycle coverage and reproduction](subnet-lifecycle.md).
+
+Direct Python unit discovery passed **6 tests**; all **15** Python modules in
+`tests` and `scripts` parsed. Clang-format dry-run, Ruff, changed-file whitespace
+and local Markdown link checks passed. Automatic approval review blocked the
+combined quality runner over possible protected-file access; the task-relevant
+checks were executed separately on explicit file types and paths.
+
+SQL deletion, native backend absence, unchanged active runtime, explicit
+pull/reload removal and absence after daemon restart were distinguished. Real
+DORA still succeeded before activation; after activation no new OFFER was
+received and existing memfile lease bytes were unchanged. The hook initiates
+neither activation nor lease deletion. SQL lease stores, distributed activation,
+concurrent independent writers, Oracle MySQL, Kea 3.0.4 runtime compatibility,
+production load and the full upstream Kea suite remain unverified. Mutation
+preflight requires externally coordinated writers, as documented for set/delete.

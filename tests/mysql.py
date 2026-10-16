@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from mutation import request, verify_mutations
+from lifecycle import verify_lifecycle
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
 from postgresql import verify_complex
@@ -336,6 +337,11 @@ def run_case(args, directory, multithreading):
                         "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}})["result"] == 1
                     other_before = snapshot("kea_other")
                     assert send("cb-subnet4-list") == ambiguous
+                    for name, arguments in (("cb-subnet4-get", {"id": 42}),
+                                            ("cb-subnet4-del", {"id": 42, "server-tag": "all",
+                                                                "preserve-leases": True})):
+                        response = send(name, arguments)
+                        assert response["result"] == 1 and "exactly one" in response["text"]
                     assert snapshot("kea_other") == other_before
                     sql("START TRANSACTION; CALL createAuditRevisionDHCP4(NOW(), 'all', 'overlap', 0); "
                         "INSERT INTO dhcp4_subnet(subnet_id,subnet_prefix,valid_lifetime,modification_ts) "
@@ -343,6 +349,10 @@ def run_case(args, directory, multithreading):
                         "INSERT INTO dhcp4_subnet_server VALUES(42,1,NOW()); COMMIT", database="kea_other")
                     other_before = snapshot("kea_other")
                     assert send("cb-subnet4-list") == ambiguous
+                    for name, arguments in (("cb-subnet4-get", {"id": 42}),
+                                            ("cb-subnet4-del", {"id": 42, "server-tag": "all",
+                                                                "preserve-leases": True})):
+                        assert send(name, arguments)["result"] == 1
                     assert snapshot("kea_other") == other_before
                     assert snapshot() == before
                     databases.pop()
@@ -355,6 +365,12 @@ def run_case(args, directory, multithreading):
                     stop(database_process)
                     assert database_process.returncode == 0, "MySQL shutdown failed"
                     assert send("config-backend-pull")["result"] != 0
+                    assert send("cb-subnet4-get", {"id": 42}) == unavailable
+                    assert send("cb-subnet4-del", {
+                        "id": 42, "server-tag": "all", "preserve-leases": True}) == {
+                            "result": 1, "text": (
+                                "Configuration backend deletion failed or unavailable; "
+                                "reconcile backend state before retrying.")}
                     assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
                         "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}})["result"] == 1
                     # Reconnect removes the broken backend; later pulls can
@@ -424,6 +440,7 @@ def run_case(args, directory, multithreading):
 
                     verify_mutations(send, snapshot, sql, config, save,
                                      deny_association, restore_privileges)
+                    verify_lifecycle(send, snapshot, sql, config, save)
                     if args.packet:
                         verify_dhcp(send, config, save, directory, snapshot)
                     require_success(send("shutdown"))
@@ -438,6 +455,7 @@ def run_case(args, directory, multithreading):
                         try:
                             active = require_success(send("config-get"))["Dhcp4"]["subnet4"]
                             assert {row["id"]: row["subnet"] for row in active}[900] == "198.18.4.0/24"
+                            assert not {920, 921} & {row["id"] for row in active}
                             pools = {row["id"]: row["pools"] for row in active}
                             assert pools[900][0]["pool"].replace(" ", "") == "198.18.4.10-198.18.4.20"
                             break

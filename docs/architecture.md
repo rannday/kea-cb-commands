@@ -22,16 +22,17 @@ flowchart LR
     Pull --> Runtime[Active DHCP configuration]
 ```
 
-Both subnet commands use the native DHCPv4 pool and sole configured backend's
+All subnet commands use the native DHCPv4 pool and sole configured backend's
 type. PostgreSQL and MariaDB reads and minimal subnet writes are runtime-verified
 with the same hook code. SQL persistence and native pull/reload activation are
 separate operations; the hook never initiates activation.
 
 ## Minimal implementation
 
-`src/diagnostic.cc` contains four exported C entry points and three private command
+`src/diagnostic.cc` contains four exported C entry points and five private command
 callouts. `load` checks the process and family, then registers
-`db-commands-diagnostic`, `cb-subnet4-list`, and `cb-subnet4-set`.
+`db-commands-diagnostic`, `cb-subnet4-list`, `cb-subnet4-get`, `cb-subnet4-set`
+and `cb-subnet4-del`.
 `version` returns the installed header's exact framework
 version. `unload` logs teardown; Kea owns callout deregistration. The stateless
 hook declares multi-threading compatibility for synchronous main-thread command
@@ -66,6 +67,13 @@ preserves basic stored pools when omitted, and delegates one write to
 hook neither issues SQL nor constructs a private backend. Write failures are
 never retried; uncertain commit outcomes require reconciliation. See the
 [exact contract and consistency limits](commands.md).
+
+Get uses native `getSubnet4` by ID or prefix and returns native serialization.
+Delete validates a required tag and lease-preservation acknowledgement, performs
+an `ANY` preflight to reject shared networks and unsafe associations, then calls
+the matching tagged `deleteSubnet4` overload. The native driver owns the entire
+delete transaction and audit. Neither command uses direct SQL or lease deletion.
+See [pinned upstream lifecycle findings](subnet-lifecycle.md).
 
 The build uses upstream `kea.pc` metadata and shared Kea libraries, either from a
 matching installation or Meson's uninstalled build-tree metadata. A configure
@@ -170,10 +178,18 @@ workflow does not establish compatibility. See [the build guide](reproducible-bu
    upstream source, build in a fresh prefix, enforce formatting/lint and strict
    integration gates, and inspect installed shared-library exports/dependencies.
    See [procedures and execution status](reproducible-builds.md).
-8. **Expand by tested object family.** Add deletion, shared networks, options,
+8. **Milestone 7: DHCPv4 subnet lifecycle.** Native get/delete by ID or prefix,
+   explicit association and lease guards, SQL rollback/audit tests and separate
+   runtime activation. See [contracts](commands.md) and
+   [upstream findings and verification](subnet-lifecycle.md).
+9. **Recommended next: operational lifecycle safety.** Verify deletion activation
+   failure/recovery, coordinated activation across servers and safe handling of
+   retained leases before adding more object families. Independent writers still
+   require external serialization; the native API exposes no atomic preflight.
+10. **Expand by tested object family.** Add shared networks, options,
    option definitions, globals, classes, and server associations only as supported
    by exact upstream APIs. Evaluate documented `cb_cmds` compatibility per command.
-9. **Release discipline.** Maintain exact-release build artifacts and regression
+11. **Release discipline.** Maintain exact-release build artifacts and regression
    gates; add packaging only after dependency and ABI constraints are demonstrated.
 
 The recommended next milestone is supported-version ABI/install verification and

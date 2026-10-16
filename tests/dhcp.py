@@ -245,4 +245,26 @@ def verify_packet_restart(send, directory):
         ("127.0.0.30", "127.0.0.40")]
     path = _exchange(directory, "127.0.0.30", "127.0.0.40")
     print("PASS: restarted Kea loads SQL pool replacement and records a fresh DHCP lease")
+    before = path.read_bytes()
+    time.sleep(1.1)
+    response = require_success(send("cb-subnet4-del", {
+        "id": SUBNET_ID, "server-tag": "test-server", "preserve-leases": True}))
+    assert response["leases-deleted"] is False
+    assert path.read_bytes() == before, "Configuration deletion modified lease storage"
+    assert send("cb-subnet4-get", {"id": SUBNET_ID})["result"] == 3
+    assert SUBNET_ID not in _subnets(send, "cb-subnet4-list")
+    assert SUBNET_ID in _subnets(send, "config-get")
+    # The still-active runtime subnet can allocate despite SQL deletion.
+    _exchange(directory, "127.0.0.30", "127.0.0.40")
+    before = path.read_bytes()
+    require_success(send("config-backend-pull"))
+    assert SUBNET_ID not in _subnets(send, "config-get")
+    _exchange(directory, None, None, expect_offer=False)
+    assert path.read_bytes() == before, "Native deletion activation removed/changed leases"
+    require_success(send("config-reload"))
+    assert SUBNET_ID not in _subnets(send, "config-get")
+    _exchange(directory, None, None, expect_offer=False)
+    assert path.read_bytes() == before
+    print("PASS: SQL deletion retains leases and active DORA; explicit pull/reload "
+          "removes runtime subnet, no subsequent DHCPOFFER, existing leases unchanged")
     return path

@@ -118,6 +118,15 @@ def run_case(server, hook, directory, multithreading):
             if SUBNET_LIST not in names:
                 raise AssertionError("Subnet list command was not registered")
             assert "cb-subnet4-set" in names
+            for name in ("cb-subnet4-get", "cb-subnet4-del"):
+                assert name in names
+                arguments = {"id": 900}
+                if name.endswith("-del"):
+                    arguments.update({"server-tag": "all", "preserve-leases": True})
+                assert send(name, arguments)["text"] == (
+                    "Subnet lookup/deletion requires exactly one configured SQL backend.")
+                for invalid in (None, {}, [], {"unexpected": True}):
+                    assert send(name, invalid)["result"] == 1
             valid_set = {"server-tag": "all", "subnet4": {
                 "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}}
             assert send("cb-subnet4-set", valid_set)["text"] == (
@@ -143,6 +152,9 @@ def run_case(server, hook, directory, multithreading):
             save()
             require_success(send("config-reload"))
             assert "cb-subnet4-set" not in require_success(send("list-commands"))
+            for name in ("cb-subnet4-get", "cb-subnet4-del"):
+                assert name not in require_success(send("list-commands"))
+                assert send(name)["result"] == 2
             if DIAGNOSTIC in require_success(send("list-commands")):
                 raise AssertionError("Command remained registered after unload")
             if SUBNET_LIST in require_success(send("list-commands")):
@@ -154,6 +166,8 @@ def run_case(server, hook, directory, multithreading):
             require_success(send("config-reload"))
             require_success(send(DIAGNOSTIC))
             assert "cb-subnet4-set" in require_success(send("list-commands"))
+            for name in ("cb-subnet4-get", "cb-subnet4-del"):
+                assert name in require_success(send("list-commands"))
             if send(SUBNET_LIST)["result"] != 1:
                 raise AssertionError("Missing backend error changed after reload")
             require_success(send("shutdown"))

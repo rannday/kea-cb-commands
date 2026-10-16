@@ -5,13 +5,18 @@ configuration backends through Kea commands. It targets unmodified upstream Kea
 on Linux and reuses its PostgreSQL and MySQL/MariaDB backend implementations and
 schema. It has no dependency on another repository, custom distribution, or Docker.
 
-**Status: native DHCPv4 reads and subnet create/update target Kea 3.2.1,
+**Status: native DHCPv4 subnet list/get/set/delete target Kea 3.2.1,
 PostgreSQL 15 and MariaDB 10.11.**
 `cb-subnet4-list` reads through Kea's existing configuration backend interfaces
 and returns native subnet configuration. `cb-subnet4-set` persists one minimal
 standalone subnet and basic IPv4 address pools through those same interfaces,
 without activating them. Omitted `pools` preserves stored basic pools; an explicit
 list replaces them, including an empty list to remove all pools.
+`cb-subnet4-get` retrieves one native subnet by ID or prefix. `cb-subnet4-del`
+deletes one standalone, singly associated subnet using an explicit server tag
+and `preserve-leases: true`. Deletion retains leases and requires separate native
+activation; it never reloads or restarts Kea. Avoid ID/prefix reuse while retained
+leases could conflict. See [lifecycle safety and upstream findings](docs/subnet-lifecycle.md).
 See the [mutation command contract](docs/commands.md), including its required
 exclusive-writer policy, and [PostgreSQL integration](docs/postgresql.md)
 for setup, the command contract and verified complex fields;
@@ -22,7 +27,7 @@ to prepare native statements even though listing performs no writes;
 PostgreSQL supports the tested SELECT-only account. Oracle MySQL is unverified.
 The list command requires one configured backend, accepts only absent or empty
 arguments, and rejects shared-network subnets to avoid incomplete results.
-Commercial `cb_cmds` compatibility, deletion, option mutations and DHCPv6
+Commercial `cb_cmds` compatibility, shared-network management, option mutations and DHCPv6
 are not implemented. See [pool behavior and packet verification](docs/pools.md)
 for pinned upstream evidence and the verification record. Real DORA exchanges
 and recorded leases passed on PostgreSQL and MariaDB with threading on and off.
@@ -91,7 +96,7 @@ error. The command returns no credentials or configuration data.
 - [Subnet and pool mutation contract and activation](docs/commands.md)
 - [Verified backend selection, selectors and recovery](docs/backend-behavior.md)
 - [MySQL/MariaDB prerequisites and isolated test](docs/mysql.md)
-- `src/diagnostic.cc`: hook entry points, diagnostic, subnet list and set commands
+- `src/diagnostic.cc`: hook entry points, diagnostic, subnet list/get/set/delete commands
 - [Pool persistence and isolated DHCP packet tests](docs/pools.md)
 - `tests/`: transport, real-Kea lifecycle, isolated PostgreSQL/MySQL and DHCP tests
 - `.github/workflows/ci.yml`: Ubuntu 24.04 quality and strict integration gates;

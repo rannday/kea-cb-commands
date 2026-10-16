@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from mutation import verify_mutations
+from lifecycle import verify_lifecycle
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
 from smoke import require_success
@@ -258,6 +259,11 @@ def run_case(args, directory, multithreading):
                     "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}})["result"] == 1
                 ambiguous = send("cb-subnet4-list")
                 assert ambiguous["result"] == 1 and "multiple backends" in ambiguous["text"]
+                for name, arguments in (("cb-subnet4-get", {"id": 42}),
+                                        ("cb-subnet4-del", {"id": 42, "server-tag": "all",
+                                                            "preserve-leases": True})):
+                    response = send(name, arguments)
+                    assert response["result"] == 1 and "exactly one" in response["text"]
                 sql("BEGIN; SELECT createAuditRevisionDHCP4(CURRENT_TIMESTAMP, 'all', "
                     "'overlap fixture', false); "
                     "INSERT INTO dhcp4_subnet(subnet_id, subnet_prefix, valid_lifetime) "
@@ -265,6 +271,10 @@ def run_case(args, directory, multithreading):
                     "INSERT INTO dhcp4_subnet_server(subnet_id, server_id) VALUES (42, 1); "
                     "COMMIT", database="kea_second")
                 assert send("cb-subnet4-list") == ambiguous
+                for name, arguments in (("cb-subnet4-get", {"id": 42}),
+                                        ("cb-subnet4-del", {"id": 42, "server-tag": "all",
+                                                            "preserve-leases": True})):
+                    assert send(name, arguments)["result"] == 1
                 databases.pop()
                 save()
                 require_success(send("config-reload"))
@@ -314,6 +324,12 @@ def run_case(args, directory, multithreading):
                     "result": 1,
                     "text": "Configuration backend read failed or unavailable.",
                 }, "Backend failure response changed or exposed details"
+                assert send("cb-subnet4-get", {"id": 42}) == response
+                failed_delete = send("cb-subnet4-del", {
+                    "id": 42, "server-tag": "all", "preserve-leases": True})
+                assert failed_delete == {"result": 1, "text": (
+                    "Configuration backend deletion failed or unavailable; "
+                    "reconcile backend state before retrying.")}
                 # Allow native retry callbacks to remove the unusable backend;
                 # reads must remain errors rather than successful empty lists.
                 unavailable_until = time.monotonic() + 2
@@ -357,6 +373,7 @@ def run_case(args, directory, multithreading):
                     send, rows_snapshot, sql, config, save,
                     lambda: sql("REVOKE INSERT ON dhcp4_subnet_server FROM kea_writer"),
                     lambda: sql("GRANT INSERT ON dhcp4_subnet_server TO kea_writer"))
+                verify_lifecycle(send, rows_snapshot, sql, config, save)
                 if args.packet:
                     verify_dhcp(send, config, save, directory, rows_snapshot)
                 require_success(send("shutdown"))
@@ -371,6 +388,7 @@ def run_case(args, directory, multithreading):
                     try:
                         active = require_success(send("config-get"))["Dhcp4"]["subnet4"]
                         assert {row["id"]: row["subnet"] for row in active}[900] == "198.18.4.0/24"
+                        assert not {920, 921} & {row["id"] for row in active}
                         pools = {row["id"]: row["pools"] for row in active}
                         assert pools[900][0]["pool"].replace(" ", "") == "198.18.4.10-198.18.4.20"
                         break

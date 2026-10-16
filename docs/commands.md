@@ -1,4 +1,101 @@
-# DHCPv4 subnet and pool mutation
+# DHCPv4 subnet lifecycle commands
+
+## Retrieve one subnet: `cb-subnet4-get`
+
+```json
+{"command":"cb-subnet4-get","arguments":{"id":900,"server-tag":"test-server"}}
+```
+
+Alternatively use `"subnet":"198.18.0.0/24"` instead of `id`. Exactly one
+identity is required. The only optional field is `server-tag`, defaulting to
+the active server tag, or `all` if empty. IDs, prefixes and tag strings obey the
+syntactic set validation rules below. Unknown fields, both identities, malformed identities,
+multiple tags, `any` and per-request backend selectors are rejected. Exactly one
+configured native PostgreSQL/MySQL backend is required.
+
+The response has `result: 0`, `text: "DHCPv4 subnet retrieved."` and
+`arguments: {"server-tag": "test-server", "subnet4": [SUBNET]}` where `SUBNET`
+is the complete native `Subnet4::toElement()` serialization, with the same shape
+and defaults as `cb-subnet4-list`. This is stored configuration, not an effective
+runtime configuration or a lease report. Shared-network members are rejected
+because flat serialization omits their inherited context.
+
+No matching visible subnet returns exactly:
+
+```json
+{
+  "result": 3,
+  "text": "DHCPv4 subnet not found.",
+  "arguments": {"server-tag": "test-server", "subnet4": []}
+}
+```
+
+`ONE(tag)` includes universal `all` objects. `all` selects only universal objects.
+Reads do not require a named server record; universal objects can still match.
+Other tags and unassigned rows are invisible. Reads do not change SQL, audit,
+timestamps, runtime or leases. Native read errors have `result: 1`, generic text
+`Configuration backend read failed or unavailable.` and no `arguments`.
+
+## Delete one subnet: `cb-subnet4-del`
+
+```json
+{
+  "command": "cb-subnet4-del",
+  "arguments": {"id": 900, "server-tag": "test-server", "preserve-leases": true}
+}
+```
+
+Use `subnet` instead of `id` to delete by canonical IPv4 prefix. Exactly one
+identity, an explicit `server-tag`, and the boolean `preserve-leases: true` are
+required; these are the only allowed fields. The acknowledgement records the
+caller's acceptance of retained leases and separate activation; it never scans
+or changes leases. Missing, false, string or numeric acknowledgements are errors.
+Backend count/type and identity validation match get. A named server must exist.
+
+The subnet must have exactly one association matching the requested tag.
+Universal deletion requires explicit `"server-tag":"all"`. Unlike get, a
+specific tag cannot delete a universal subnet. Differently tagged, unassigned,
+multiply associated and shared-network subnets are rejected before mutation.
+Deletion removes the whole subnet and native dependent pools/options/associations;
+it does not remove the server record or detach just one association.
+
+Success is exactly:
+
+```json
+{
+  "result": 0,
+  "text": "DHCPv4 subnet deleted; leases retained; activation required.",
+  "arguments": {
+    "server-tag": "test-server",
+    "deleted": 1,
+    "leases-deleted": false,
+    "activation-requested": false
+  }
+}
+```
+
+A missing identity returns the same arguments with `deleted: 0`, `result: 3`,
+and `text: "DHCPv4 subnet not found."`; this path does not create an audit revision.
+Contract violations return `result: 1`, explanatory text and no `arguments`.
+Native exceptions use `Configuration backend deletion failed or unavailable;
+reconcile backend state before retrying.` Connection loss can make commit outcome
+uncertain; inspect backend state before retrying. No automatic retry is performed.
+
+The native delete owns one transaction including child removal, audit entry and
+revision timestamp. Failed transactions roll back their table changes;
+nontransactional sequence/auto-increment counters can advance. Validation reads
+are outside that transaction: **serialize independent configuration writers**.
+The hook cannot atomically compare a preflight object and delete it.
+
+SQL deletion is immediately visible to backend reads. Active runtime configuration
+can continue allocating until a separately requested `config-backend-pull`, reload
+or restart succeeds on every affected server. Check `config-get` and packet
+behavior; command success alone does not establish activation. Retained leases
+are not revoked, and clients can continue using them until expiry. Do not reuse
+subnet IDs, prefixes or address space while retained leases could conflict.
+See [upstream findings and operational limits](subnet-lifecycle.md).
+
+## Create/update: `cb-subnet4-set`
 
 `cb-subnet4-set` creates or updates one standalone subnet in one configured SQL
 configuration backend. Verified against unmodified Kea 3.2.1, PostgreSQL 15.19

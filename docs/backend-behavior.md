@@ -5,6 +5,12 @@ This review uses the unmodified public `Kea-3.2.1` source under
 Source inspection and runtime evidence are distinguished explicitly. Kea 3.0.4
 has not been SQL-runtime-tested. No proprietary hook source is used.
 
+For identity retrieval/deletion, exact-tag versus universal read semantics,
+transaction/audit boundaries, shared-network and active-lease behavior, see
+[the pinned lifecycle investigation](subnet-lifecycle.md). Its command policy
+adds a single-association delete guard and lease-preservation acknowledgement;
+existing list/set behavior is preserved.
+
 ## Pool and command selection
 
 `src/lib/dhcpsrv/config_backend_pool_dhcp4.cc:40` delegates `getAllSubnets4` to

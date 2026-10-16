@@ -154,6 +154,169 @@ struct ContractError : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
+// Identity lookups deliberately expose neither ANY nor backend selectors.
+isc::data::ConstElementPtr lookupSubnet(const isc::data::ConstElementPtr& arguments,
+                                        const bool remove) {
+    using namespace isc::data;
+    using namespace isc::dhcp;
+    using namespace isc::db;
+    if (!arguments || arguments->getType() != Element::map) {
+        throw ContractError("Expected one id or subnet selector and optional server-tag.");
+    }
+    const auto id = arguments->get("id");
+    const auto prefix = arguments->get("subnet");
+    const auto tag_element = arguments->get("server-tag");
+    const auto preserve = arguments->get("preserve-leases");
+    if (remove && (!tag_element || !preserve || preserve->getType() != Element::boolean ||
+                   !preserve->boolValue())) {
+        throw ContractError("Deletion requires server-tag and preserve-leases: true.");
+    }
+    if (bool(id) == bool(prefix) ||
+        arguments->mapValue().size() != (tag_element ? 2U : 1U) + (remove ? 1U : 0U)) {
+        throw ContractError("Expected exactly one id or subnet selector and optional server-tag.");
+    }
+    if (id && (id->getType() != Element::integer || id->intValue() < 1 ||
+               id->intValue() > SUBNET_ID_MAX)) {
+        throw ContractError("id must be an integer in 1..4294967294.");
+    }
+    if (prefix) {
+        try {
+            if (prefix->getType() != Element::string) {
+                throw ContractError("Invalid prefix type.");
+            }
+            const auto text = prefix->stringValue();
+            const auto slash = text.find('/');
+            if (slash == std::string::npos) {
+                throw ContractError("Missing prefix length.");
+            }
+            const auto length_text = text.substr(slash + 1);
+            if (length_text.empty() ||
+                length_text.find_first_not_of("0123456789") != std::string::npos) {
+                throw ContractError("Invalid prefix length.");
+            }
+            const auto length = std::stoul(length_text);
+            const isc::asiolink::IOAddress address(text.substr(0, slash));
+            if (!address.isV4() || length > 32 ||
+                isc::asiolink::firstAddrInPrefix(address, length) != address ||
+                text != address.toText() + "/" + std::to_string(length)) {
+                throw ContractError("Noncanonical prefix.");
+            }
+        } catch (...) {
+            throw ContractError("subnet must be a canonical IPv4 CIDR string.");
+        }
+    }
+    const auto config = CfgMgr::instance().getCurrentCfg();
+    std::string tag_text = config->getServerTag();
+    if (tag_text.empty()) {
+        tag_text = "all";
+    }
+    if (tag_element) {
+        if (tag_element->getType() != Element::string) {
+            throw ContractError("server-tag must be an explicit string.");
+        }
+        tag_text = tag_element->stringValue();
+    }
+    ServerTag tag;
+    try {
+        tag = ServerTag(tag_text);
+    } catch (...) {
+        throw ContractError("Invalid server-tag.");
+    }
+    if (tag.get() != tag_text) {
+        throw ContractError("server-tag must be lowercase without surrounding whitespace.");
+    }
+    const auto pool = ConfigBackendDHCPv4Mgr::instance().getPool();
+    const auto control = config->getConfigControlInfo();
+    if (!pool || !control || control->getConfigDatabases().size() != 1) {
+        throw ContractError("Subnet lookup/deletion requires exactly one configured SQL backend.");
+    }
+    std::string type;
+    control->getConfigDatabases().front().getParameterValue("type", type);
+    if (type != "postgresql" && type != "mysql") {
+        throw ContractError("Subnet lookup/deletion requires a PostgreSQL or MySQL backend.");
+    }
+    const BackendSelector backend(BackendSelector::stringToBackendType(type));
+    const auto selector = tag.amAll() ? ServerSelector::ALL() : ServerSelector::ONE(tag.get());
+    // A tagged read includes universal rows. Deletion must inspect every
+    // association before invoking the native exact-tag whole-row deletion.
+    const auto lookup = remove ? ServerSelector::ANY() : selector;
+    const auto subnet = id ? pool->getSubnet4(backend, lookup, SubnetID(id->intValue()))
+                           : pool->getSubnet4(backend, lookup, prefix->stringValue());
+    if (subnet && !subnet->getSharedNetworkName().empty()) {
+        throw ContractError("Shared-network subnets cannot be represented completely.");
+    }
+    auto result = Element::createMap();
+    result->set("server-tag", Element::create(tag.get()));
+    if (remove) {
+        if (!tag.amAll() && !pool->getServer4(backend, tag)) {
+            throw ContractError("server-tag must already exist in the configuration backend.");
+        }
+        uint64_t count = 0;
+        if (subnet) {
+            const auto tags = subnet->getServerTags();
+            if (tags.size() != 1 || tags.begin()->get() != tag.get()) {
+                throw ContractError("Deletion requires one exact server-tag association.");
+            }
+            // Native backend owns transaction, audit and cascading children.
+            // Independent writers must be serialized with this preflight.
+            count = id ? pool->deleteSubnet4(backend, selector, SubnetID(id->intValue()))
+                       : pool->deleteSubnet4(backend, selector, prefix->stringValue());
+        }
+        result->set("deleted", Element::create(static_cast<int64_t>(count)));
+        result->set("leases-deleted", Element::create(false));
+        result->set("activation-requested", Element::create(false));
+        return result;
+    }
+    // Keep the same native subnet list shape used by cb-subnet4-list.
+    auto list = Element::createList();
+    if (subnet) {
+        list->add(subnet->toElement());
+    }
+    result->set("subnet4", list);
+    return result;
+}
+
+int subnet4Lookup(isc::hooks::CalloutHandle& handle, const bool remove) {
+    using namespace isc::data;
+    using namespace isc::config;
+    try {
+        ConstElementPtr response;
+        try {
+            ConstElementPtr command;
+            handle.getArgument("command", command);
+            const auto result =
+                lookupSubnet(command ? command->get("arguments") : ConstElementPtr(), remove);
+            const bool found = remove ? result->get("deleted")->intValue() != 0
+                                      : !result->get("subnet4")->listValue().empty();
+            response = createAnswer(
+                found ? CONTROL_RESULT_SUCCESS : CONTROL_RESULT_EMPTY,
+                found ? (remove ? "DHCPv4 subnet deleted; leases retained; activation required."
+                                : "DHCPv4 subnet retrieved.")
+                      : "DHCPv4 subnet not found.",
+                result);
+        } catch (const ContractError& error) {
+            response = createAnswer(CONTROL_RESULT_ERROR, error.what());
+        } catch (...) {
+            response = createAnswer(CONTROL_RESULT_ERROR,
+                                    remove ? "Configuration backend deletion failed or "
+                                             "unavailable; reconcile backend state before retrying."
+                                           : "Configuration backend read failed or unavailable.");
+        }
+        handle.setArgument("response", response);
+        return 0;
+    } catch (...) {
+        return 1;
+    }
+}
+
+int subnet4Get(isc::hooks::CalloutHandle& handle) {
+    return subnet4Lookup(handle, false);
+}
+
+int subnet4Del(isc::hooks::CalloutHandle& handle) {
+    return subnet4Lookup(handle, true);
+}
+
 isc::data::ConstElementPtr setSubnet(const isc::data::ConstElementPtr& arguments) {
     using namespace isc::data;
     using namespace isc::dhcp;
@@ -353,6 +516,8 @@ DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
         }
         handle.registerCommandCallout("db-commands-diagnostic", diagnostic);
         handle.registerCommandCallout("cb-subnet4-list", subnet4List);
+        handle.registerCommandCallout("cb-subnet4-get", subnet4Get);
+        handle.registerCommandCallout("cb-subnet4-del", subnet4Del);
         handle.registerCommandCallout("cb-subnet4-set", subnet4Set);
         LOG_INFO(logger, "DB_COMMANDS_LOADED");
         return 0;
