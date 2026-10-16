@@ -139,6 +139,7 @@ PostgreSQL supports the tested SELECT-only account.
 - [Architecture](docs/architecture.md) and [upstream feasibility evidence](docs/feasibility.md)
 - [Development and output layout](docs/development.md)
 - [Reproducible builds, quality, CI and acceptance](docs/reproducible-builds.md)
+- [Docker validation of the published Ubuntu release](tests/docker/README.md)
 - [Release installation](docs/release-install.md), [notes](docs/release-notes.md)
   and [maintainer release procedure](docs/releases.md)
 

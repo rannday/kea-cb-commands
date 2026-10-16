@@ -1,0 +1,13 @@
+**
+!scripts/
+!scripts/build_kea.py
+!scripts/kea-source.json
+!scripts/requirements-quality.txt
+!tests/
+!tests/control.py
+!tests/smoke.py
+!tests/dhcp.py
+!tests/docker/
+!tests/docker/Dockerfile
+!tests/docker/install_release.py
+!tests/docker/validate.py
