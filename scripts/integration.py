@@ -98,6 +98,8 @@ def main():
     parser.add_argument("--kea-prefix", required=True, type=Path)
     parser.add_argument("--build-dir", default=Path("build/integration"), type=Path)
     parser.add_argument("--jobs", default=2, type=int)
+    parser.add_argument("--sanitizers", action="store_true",
+                        help="GCC ASan+UBSan hook build; requires a separate --build-dir")
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error("--jobs must be positive")
@@ -132,18 +134,36 @@ def main():
         "KEA_MYSQL_INSTALL_DB": required_program("mariadb-install-db", "mysql_install_db"),
     })
     environment = kea_environment(prefix)
+    sanitizer_logs = None
+    if args.sanitizers:
+        import sanitizers
+
+        if build_dir == (source_dir / "build/integration").resolve():
+            raise RuntimeError("Use a dedicated --build-dir (for example build/sanitizers)")
+        compiler = required_program("g++")
+        server, sanitizer_logs = sanitizers.prepare(
+            build_dir, Path(paths["KEA_DHCP4_EXECUTABLE"]), compiler
+        )
+        paths["KEA_DHCP4_EXECUTABLE"] = str(server)
     command = [
         "cmake", "-S", str(source_dir), "-B", str(build_dir),
         # Refresh all Kea discovery and link checks when reusing a build directory.
         "-U", "*KEA*",
-        "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_TESTING=ON", "-DCMAKE_INSTALL_LIBDIR=lib",
+        f"-DCMAKE_BUILD_TYPE={'RelWithDebInfo' if args.sanitizers else 'Release'}",
+        "-DBUILD_TESTING=ON", "-DCMAKE_INSTALL_LIBDIR=lib",
         "-DKEA_DB_COMMANDS_WARNINGS_AS_ERRORS=ON",
+        f"-DKEA_DB_COMMANDS_SANITIZERS={'ON' if args.sanitizers else 'OFF'}",
     ]
+    if args.sanitizers:
+        command.append(f"-DCMAKE_CXX_COMPILER={compiler}")
     for option in ("RUNTIME", "POSTGRESQL", "MYSQL", "DHCP"):
         command.append(f"-DKEA_DB_COMMANDS_{option}_TESTS=ON")
     command.extend(f"-D{name}={value}" for name, value in paths.items())
     run(command, environment)
     run(["cmake", "--build", str(build_dir), "--parallel", str(args.jobs)], environment)
+    if args.sanitizers:
+        sanitizers.verify_instrumentation(build_dir / "libdhcp_db_commands.so")
+        sanitizers.verify_detectors(compiler, sanitizer_logs, environment)
     report = build_dir / "ctest-results.xml"
     report.unlink(missing_ok=True)
     command = [
@@ -156,6 +176,11 @@ def main():
     for check, target in ((verify_report, report), (verify_cleanup, build_dir)):
         try:
             check(target)
+        except RuntimeError as error:
+            errors.append(str(error))
+    if args.sanitizers:
+        try:
+            sanitizers.verify_logs(sanitizer_logs)
         except RuntimeError as error:
             errors.append(str(error))
     if result.returncode:

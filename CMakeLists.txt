@@ -69,6 +69,16 @@ option(KEA_DB_COMMANDS_WARNINGS_AS_ERRORS "Treat hook compiler warnings as error
 if(KEA_DB_COMMANDS_WARNINGS_AS_ERRORS)
     target_compile_options(kea_db_commands PRIVATE -Werror)
 endif()
+option(KEA_DB_COMMANDS_SANITIZERS "Instrument the hook with GCC ASan and UBSan (development only)" OFF)
+if(KEA_DB_COMMANDS_SANITIZERS)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(FATAL_ERROR "The sanitizer runner currently supports GCC runtimes only")
+    endif()
+    target_compile_options(kea_db_commands PRIVATE
+        -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g)
+    target_link_options(kea_db_commands PRIVATE
+        -fsanitize=address,undefined -fno-sanitize-recover=all)
+endif()
 # Keep checkout paths out of __FILE__ and debug information. Runtime library
 # discovery is explicit (LD_LIBRARY_PATH or the administrator's loader setup).
 target_compile_options(kea_db_commands PRIVATE
