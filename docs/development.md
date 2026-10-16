@@ -179,3 +179,47 @@ blocked coverage. Inspect the retained report and its stack before attributing
 a finding to project code or external libraries. Do not disable leak detection,
 runtime checks or tests to turn a finding into a pass. Diagnostics can include
 disposable fixture paths and upstream details; inspect them before sharing.
+
+
+## Multi-process SQL validation
+
+Run the optional concurrency phase through the existing strict integration gate:
+
+```sh
+python3 -B scripts/integration.py \
+  --kea-prefix "$PWD/build-repro-clean/install" \
+  --build-dir build/concurrency --multiprocess
+```
+
+Substitute `build/upstream/install` for a new upstream installation. This is a
+normal Release C++14 build with warnings as errors, not a sanitizer build.
+`KEA_DB_COMMANDS_MULTIPROCESS_TESTS` defaults to `OFF`. The option extends the
+existing `postgresql_read` and `mysql_read` tests, each in both threading modes;
+the required six-test gate and packet tests remain intact.
+
+Each private SQL fixture runs the original Kea daemon plus a writer and observer
+with separate PID/lock/data directories and loopback HTTP endpoints. Database
+servers use private Unix sockets; the concurrency peers have no DHCP interfaces.
+Barriers coordinate ordinary races. Administrative row locks in the disposable
+database hold native transactions open for deterministic read, stale-preflight,
+rollback, termination and timeout checks. These locks are test coordination, not
+a proposed deployment mechanism. No SQL is added to the hook.
+
+Three repetitions cover each ordinary write race; two gated repetitions probe
+omitted-pool lost updates. The runner retains command responses and final native
+objects in `build/concurrency/concurrency-results/<backend>-mt-<0|1>/outcomes.json`,
+plus peer logs. CTest logs and JUnit results remain in the build directory.
+The SQL-disconnection case records the known upstream Kea 3.2.1 abort and
+explicit restart recovery; a passing test does not clear this availability
+blocker. Unexpected exits or unclassified outcomes fail the test.
+Configurations and authentication files stay in temporary fixture directories
+and are removed on completion. Failures exit nonzero. Inspect diagnostics before
+sharing them; upstream logs can contain disposable connection details.
+
+A successful run validates the recorded outcomes and cleanup. It does **not**
+establish safe concurrent writes. Keep the coordinated exclusive-writer policy
+in [backend behavior](backend-behavior.md#multi-process-validation). The suite
+checks each peer's active configuration independently; the existing packet tests
+separately verify explicit activation, DORA and leases. It does not send packets
+to several concurrent DHCP servers or inject a precisely timed SQL COMMIT
+acknowledgement loss.

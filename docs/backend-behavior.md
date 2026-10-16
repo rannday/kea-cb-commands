@@ -185,6 +185,91 @@ on both engines. Native sequence/auto-increment allocation need not roll back.
 Loss of the connection at commit remains an uncertain outcome and is never
 automatically retried by this hook.
 
+## Multi-process validation
+
+**Concurrent reads are supported; independent concurrent writes are unsupported.**
+Use one coordinated writer across all processes and server tags. Kea packet
+multithreading does not serialize other daemons' control commands. The hook's
+main-thread execution only serializes commands within one daemon.
+
+The optional [multi-process suite](development.md#multi-process-sql-validation)
+runs three independent unmodified Kea 3.2.1 processes against each disposable
+PostgreSQL/MariaDB database, with packet threading disabled and enabled. It
+records responses and final native objects, including scheduling-dependent
+outcomes. A transaction's atomic commit does not make the hook's earlier reads
+and subsequent native upsert serializable.
+
+| Guarantee | Owner and boundary |
+| --- | --- |
+| Argument, identity and association preflight | Hook; separate from mutation transaction |
+| Main-thread command execution | Kea; one daemon only |
+| Subnet/pool/audit transaction | Native Kea SQL backend; does not cover hook preflight |
+| Committed reads, locking and rollback | Database engine and configured isolation |
+| Exclusive writer, retry reconciliation and activation | Operator; coordinate every daemon and backend tool |
+
+The fixtures report database defaults of PostgreSQL `read committed` and MariaDB
+`REPEATABLE-READ`; they do not establish serializable behavior. Gated readers
+observe the previous committed object while native writes are blocked, including
+before a forced rollback. No uncommitted partial object is observed in these
+cases. This is database visibility evidence, not a hook snapshot or lock contract.
+
+The native upsert matches an existing subnet by ID **or prefix**. Two competing
+creates can both return success while the final row retains only one requested
+identity. Same-subnet updates can overwrite each other. A request omitting
+`pools` copies them during preflight; another writer's subsequent pool change
+can therefore be overwritten by that stale copy. Explicit pool replacement
+also involves deleting pools before updating the subnet row. PostgreSQL runs
+returned success for both replacements yet committed the union of both requested
+pool ranges, rather than either requested replacement. Readers must not interpret
+an atomic committed object as proof that it represents one caller's intended
+replacement.
+
+Server tags select associations on shared objects; they are not separate ID or
+prefix namespaces. Existing wrong-tag, unassigned and multi-association objects
+are rejected by preflight, but two initially absent same-ID requests for different
+tags can race past those checks. `ALL` remains visible through named selectors.
+`ANY` is used internally for conflict checks; it is not a public write selector.
+The hook does not expose `UNASSIGNED` writes. Coordinate writers across tags,
+including universal configuration and other native backend tools.
+
+Native transactions provide rollback on the tested late privilege failure and
+killed-before-commit paths. Ordinary competing writes
+may return generic backend errors; those responses do not identify a deadlock,
+lock timeout or constraint error. The hook deliberately conceals native exception
+text. Database lock waits need an operational timeout policy; HTTP timeouts do
+not cancel a blocked SQL operation. Never use client timeout as proof of rollback.
+No serializable isolation or deadlock-free operation is promised.
+
+**Upstream availability blocker:** terminating PostgreSQL or MariaDB connections
+during blocked native writes can abort Kea 3.2.1 with `DbConnectionUnusable`,
+rather than returning a command error. The database rolls back the transaction, but daemon
+restart is required. In upstream `src/lib/pgsql/pgsql_connection.cc`,
+`PgSqlTransaction::~PgSqlTransaction()` calls `rollback()` (lines 108–112),
+which checks the unusable connection and throws (lines 630–645) during exception
+unwinding. The MySQL backend has the same unguarded rollback in
+`src/lib/mysql/mysql_connection.cc:46–51`, with the unusable connection check
+at lines 674–687. Tests confirm `SIGABRT` (exit status -6), database rollback,
+and successful operations after explicitly restarting affected peers. Hook
+callout exception containment cannot catch `std::terminate`.
+No hook workaround is applied. Exclusive writers prevent write races but do
+not eliminate this connection-loss availability risk. Supervise daemons and
+reconcile stored state after recovery; automatic retry is unsafe.
+
+After any uncertain result, first restore backend connectivity and read by both
+ID and prefix, including associations and pools. Reconcile the desired state
+under exclusive writer coordination before retrying. The response-loss case
+closes an in-flight HTTP caller, then verifies that its write committed; it does
+not inject a precisely timed lost SQL COMMIT acknowledgement. A set retry is an
+upsert, not a compare-and-swap or exactly-once request, and can create another
+audit revision. Repeated deletion can return success followed by not-found;
+that does not prevent a concurrent set from recreating the row.
+
+Stored changes leave every daemon's active configuration unchanged until that
+daemon fetches or reloads it. Explicitly activate and inspect each instance;
+one successful pull does not synchronize its peers. Existing isolated packet
+tests separately verify activated pools, DORA and leases. This suite does not
+validate a multi-server DHCP deployment or production load.
+
 ## Activation after persistence
 
 `src/bin/dhcp4/ctrl_dhcp4_srv.cc:1253–1280` implements native

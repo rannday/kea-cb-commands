@@ -295,6 +295,15 @@ empty lists, validation and late-failure rollback. Opt-in `postgresql_dhcp` and
 `mysql_dhcp` add real packet checks in both threading modes. Both engines passed
 these checks; see [the verification record](pools.md) for scope and limitations.
 
-Deletion, options, classes, shared networks, server creation/retagging, DHCPv6,
+Options, classes, shared networks, server creation/retagging, DHCPv6,
 batch writes, optimistic concurrency, automatic activation, production load and
 mixed-release compatibility remain unimplemented or unverified as applicable.
+
+
+Cross-process writes remain unsupported: coordinate a single writer across all
+server tags and all tools using the database. Both successful responses can still
+mean one request overwrote another; tags do not create independent ID/prefix
+namespaces. Reconcile stored identities, associations and pools after errors or
+lost responses before retrying. Activate and inspect each Kea process separately.
+See [multi-process evidence and guarantees](backend-behavior.md#multi-process-validation)
+and [the repeatable validation command](development.md#multi-process-sql-validation).

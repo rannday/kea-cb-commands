@@ -16,6 +16,7 @@ from pathlib import Path
 
 from mutation import verify_mutations
 from lifecycle import verify_lifecycle
+from concurrency import verify_multiprocess
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
 from smoke import require_success
@@ -379,6 +380,14 @@ def run_case(args, directory, multithreading):
                     lambda: sql("REVOKE INSERT ON dhcp4_subnet_server FROM kea_writer"),
                     lambda: sql("GRANT INSERT ON dhcp4_subnet_server TO kea_writer"))
                 verify_lifecycle(send, rows_snapshot, sql, config, save)
+                if args.multiprocess:
+                    verify_multiprocess(
+                        args, directory, config, environment, authorization, send, sql,
+                        rows_snapshot,
+                        [pg / "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1",
+                         *connection, "-d", "kea_test"], pg_environment,
+                        lambda: sql("REVOKE INSERT ON dhcp4_subnet_server FROM kea_writer"),
+                        lambda: sql("GRANT INSERT ON dhcp4_subnet_server TO kea_writer"))
                 if args.packet:
                     verify_dhcp(send, config, save, directory, rows_snapshot)
                 require_success(send("shutdown"))
@@ -433,6 +442,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("server", "hook", "pgsql-hook", "schema", "pg-bin", "work-dir"):
         parser.add_argument(f"--{name}", required=True, type=Path)
+    parser.add_argument("--multiprocess", action="store_true",
+                        help="run bounded independent-process concurrency checks")
     parser.add_argument("--packet", action="store_true",
                         help="run DORA inside the packet namespace runner")
     parser.add_argument("--lfc", type=Path, help="matching Kea lease-file cleanup executable")

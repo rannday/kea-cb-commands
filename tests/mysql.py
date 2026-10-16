@@ -16,6 +16,7 @@ from pathlib import Path
 
 from mutation import request, verify_mutations
 from lifecycle import verify_lifecycle
+from concurrency import verify_multiprocess
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
 from postgresql import verify_complex
@@ -446,6 +447,13 @@ def run_case(args, directory, multithreading):
                     verify_mutations(send, snapshot, sql, config, save,
                                      deny_association, restore_privileges)
                     verify_lifecycle(send, snapshot, sql, config, save)
+                    if args.multiprocess:
+                        verify_multiprocess(
+                            args, directory, config, environment, authorization, send, sql,
+                            snapshot,
+                            [args.mysql_bin, *connection, "--batch", "--unbuffered",
+                             "--skip-column-names", "kea_test"], environment,
+                            deny_association, restore_privileges)
                     if args.packet:
                         verify_dhcp(send, config, save, directory, snapshot)
                     require_success(send("shutdown"))
@@ -491,6 +499,8 @@ def main():
         "--select-only", action="store_true",
         help="probe native SELECT-only startup; preparation failures remain test failures",
     )
+    parser.add_argument("--multiprocess", action="store_true",
+                        help="run bounded independent-process concurrency checks")
     parser.add_argument("--packet", action="store_true",
                         help="run DORA inside the packet namespace runner")
     parser.add_argument("--lfc", type=Path, help="matching Kea lease-file cleanup executable")

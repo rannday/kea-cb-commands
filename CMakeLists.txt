@@ -121,6 +121,11 @@ if(BUILD_TESTING)
         set_tests_properties(hook_lifecycle PROPERTIES TIMEOUT 90
             ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
     endif()
+    option(KEA_DB_COMMANDS_MULTIPROCESS_TESTS "Extend SQL tests with independent Kea processes" OFF)
+    set(KEA_MULTIPROCESS_ARGUMENTS "")
+    if(KEA_DB_COMMANDS_MULTIPROCESS_TESTS)
+        list(APPEND KEA_MULTIPROCESS_ARGUMENTS --multiprocess)
+    endif()
     option(KEA_DB_COMMANDS_POSTGRESQL_TESTS "Run isolated real PostgreSQL integration" OFF)
     option(KEA_DB_COMMANDS_DHCP_TESTS "Run real DHCP in disposable Linux namespaces" OFF)
     if(KEA_DB_COMMANDS_DHCP_TESTS)
@@ -138,7 +143,7 @@ if(BUILD_TESTING)
                 --pgsql-hook "${KEA_POSTGRESQL_HOOK}"
                 --schema "${KEA_POSTGRESQL_SCHEMA}"
                 --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
-                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql)
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql ${KEA_MULTIPROCESS_ARGUMENTS})
         set_tests_properties(postgresql_read PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77
             LABELS PostgreSQL)
         # Staging upstream's hook changes its relative $ORIGIN search paths.
@@ -179,7 +184,7 @@ if(BUILD_TESTING)
                 --mysql-bin "${KEA_MYSQL_CLIENT}"
                 --mysql-install-db "${KEA_MYSQL_INSTALL_DB}"
                 --mysql-server "${KEA_MYSQL_SERVER}"
-                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql)
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql ${KEA_MULTIPROCESS_ARGUMENTS})
         set_tests_properties(mysql_read PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77
             LABELS MySQL)
         string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
@@ -202,5 +207,12 @@ if(BUILD_TESTING)
                 LABELS "MySQL;DHCP"
                 ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
         endif()
+    endif()
+    if(KEA_DB_COMMANDS_MULTIPROCESS_TESTS)
+        foreach(sql_test postgresql_read mysql_read)
+            if(TEST ${sql_test})
+                set_tests_properties(${sql_test} PROPERTIES TIMEOUT 300)
+            endif()
+        endforeach()
     endif()
 endif()
