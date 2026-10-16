@@ -96,7 +96,10 @@ error. The command returns no credentials or configuration data.
 - [Subnet and pool mutation contract and activation](docs/commands.md)
 - [Verified backend selection, selectors and recovery](docs/backend-behavior.md)
 - [MySQL/MariaDB prerequisites and isolated test](docs/mysql.md)
-- `src/diagnostic.cc`: hook entry points, diagnostic, subnet list/get/set/delete commands
+- `src/diagnostic.cc`: hook lifecycle, registration and logging
+- `src/commands.{cc,h}`: diagnostic and subnet command callouts, responses and error containment
+- `src/arguments.{cc,h}`: selector validation, native subnet/pool construction and contract errors
+- `src/subnet4.{cc,h}`: native backend selection and subnet list/get/set/delete operations
 - [Pool persistence and isolated DHCP packet tests](docs/pools.md)
 - `tests/`: transport, real-Kea lifecycle, isolated PostgreSQL/MySQL and DHCP tests
 - `.github/workflows/ci.yml`: Ubuntu 24.04 quality and strict integration gates;

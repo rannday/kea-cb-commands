@@ -16,7 +16,7 @@ def main():
     )]
     for directory in ("src", "tests", "scripts", "docs", ".github"):
         files.extend(p for p in (ROOT / directory).rglob("*")
-                     if p.is_file() and p.suffix in {".cc", ".py", ".md", ".yml", ".json", ".txt"}
+                     if p.is_file() and p.suffix in {".cc", ".h", ".py", ".md", ".yml", ".json", ".txt"}
                      and "__pycache__" not in p.parts)
     errors = []
     for path in sorted(files):
@@ -37,7 +37,8 @@ def main():
                     errors.append(f"{path.relative_to(ROOT)}: missing link target {target}")
     if errors:
         raise RuntimeError("\n".join(errors))
-    subprocess.run(["clang-format", "--dry-run", "--Werror", "src/diagnostic.cc"],
+    cpp_files = sorted(str(p.relative_to(ROOT)) for p in files if p.suffix in {".cc", ".h"})
+    subprocess.run(["clang-format", "--dry-run", "--Werror", *cpp_files],
                    cwd=ROOT, check=True)
     subprocess.run(["ruff", "check", "tests", "scripts"], cwd=ROOT, check=True)
     print(f"PASS: formatting, lint, whitespace and local document links ({len(files)} files)")

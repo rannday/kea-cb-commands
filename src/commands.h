@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: MPL-2.0
+#ifndef KEA_DB_COMMANDS_COMMANDS_H
+#define KEA_DB_COMMANDS_COMMANDS_H
+
+namespace isc {
+namespace hooks {
+class CalloutHandle;
+}
+} // namespace isc
+
+namespace kea_db_commands {
+
+// Synchronous Kea command callouts. Each contains exceptions at the hook boundary.
+int diagnostic(isc::hooks::CalloutHandle& handle);
+int subnet4List(isc::hooks::CalloutHandle& handle);
+int subnet4Get(isc::hooks::CalloutHandle& handle);
+int subnet4Del(isc::hooks::CalloutHandle& handle);
+int subnet4Set(isc::hooks::CalloutHandle& handle);
+
+} // namespace kea_db_commands
+
+#endif

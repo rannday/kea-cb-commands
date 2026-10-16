@@ -27,10 +27,17 @@ type. PostgreSQL and MariaDB reads and minimal subnet writes are runtime-verifie
 with the same hook code. SQL persistence and native pull/reload activation are
 separate operations; the hook never initiates activation.
 
-## Minimal implementation
+## Implementation layout
 
-`src/diagnostic.cc` contains four exported C entry points and five private command
-callouts. `load` checks the process and family, then registers
+`src/diagnostic.cc` contains the four exported C entry points, lifecycle logging
+and message dictionary. `src/commands.cc` contains the five command callouts,
+response construction and exception containment. `src/arguments.cc` validates
+identity selectors and constructs the supported native subnet and pool objects.
+`src/subnet4.cc` owns backend selection, server-tag policy and native subnet CRUD
+operations. The matching headers are private implementation interfaces; they do
+not add exported hook entry points or a public project API.
+
+`load` checks the process and family, then registers
 `db-commands-diagnostic`, `cb-subnet4-list`, `cb-subnet4-get`, `cb-subnet4-set`
 and `cb-subnet4-del`.
 `version` returns the installed header's exact framework
@@ -83,9 +90,9 @@ entry points exported by project source. Both checks supplement, but cannot
 replace, a real daemon load. Never statically embed Kea or bundle alternate
 versions of its dependencies.
 
-There is no public project header yet: one source file has no reusable project API.
 There is no custom `cmake/` module because upstream provides pkg-config metadata.
-These directories should appear only when an actual component needs them.
+All implementation sources build into the same shared module with hidden
+visibility. The quality runner checks every source and private header under `src`.
 
 ## Command invariants
 
