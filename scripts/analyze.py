@@ -45,7 +45,7 @@ def main():
 
     if "clangd" in checks:
         for source in sources + headers:
-            run(["clangd-22", f"--check={source}", f"--compile-commands-dir={build}"], cwd=ROOT)
+            run(["/usr/bin/clangd", f"--check={source}", f"--compile-commands-dir={build}"], cwd=ROOT)
     if "tidy" in checks:
         run(["clang-tidy", "-p", build, *sources], cwd=ROOT)
     if "analyzer" in checks:
@@ -63,7 +63,7 @@ def main():
                     next(iterator)
                 elif flag != "-c":
                     flags.append(flag)
-            run(["clang++", "--analyze", *flags, "-Xanalyzer", "-analyzer-werror",
+            run(["/usr/bin/clang++", "--analyze", *flags, "-Xanalyzer", "-analyzer-werror",
                  "-Xanalyzer", "-analyzer-output=plist", "-o", output / f"{source.stem}.plist"],
                 cwd=entry["directory"])
     if "cppcheck" in checks:

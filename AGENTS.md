@@ -78,3 +78,24 @@ Shared mutation/get/delete assertions live in `tests/mutation.py` and
 `tests/lifecycle.py`; `tests/dhcp.py` and `tests/packet_namespace.py` provide
 real DHCP DORA and lease checks. SQL and packet suites exercise both threading
 modes. See [PostgreSQL](docs/postgresql.md) and [MariaDB](docs/mysql.md) setup.
+
+## C++ semantic tools for agents
+
+Use the project-local `clangd` MCP (`isaacphi/mcp-language-server`) first for
+C++ definitions, references, hover/type information and diagnostics. Codex uses
+`.codex/config.toml` in a trusted checkout.
+See [C++ tooling](docs/cpp-tooling.md#project-local-clangd-mcp-for-development-agents)
+for launch settings, representative calls and `/mcp` verification.
+
+Confirm tools are exposed in the current session before relying on them.
+If unavailable, state that limitation and use the existing Serena C++ server
+or bounded source inspection. Avoid a duplicate bridge for routine navigation.
+Ordinary file reads/searches retain their usual tools. MCP edits and renames
+must stay within the authorized task; read-only checks must not invoke them.
+
+Use `build/integration/compile_commands.json`, with the actual C++14 flags and
+matching Kea includes. Preserve `.clangd`, the configured compiler and installed
+Kea prefix. Do not regenerate a correct build or suppress diagnostics for MCP.
+Transport initialization alone is not semantic verification; check real symbol
+results and diagnostics. The documented clangd 22 `ExtractFunction` probe
+failure in `src/subnet4.cc` does not invalidate working navigation/diagnostics.

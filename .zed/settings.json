@@ -2,7 +2,7 @@
   "lsp": {
     "clangd": {
       "binary": {
-        "path": "/usr/bin/clangd-22"
+        "path": "/usr/bin/clangd"
       }
     }
   }

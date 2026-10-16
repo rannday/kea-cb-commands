@@ -1,0 +1,8 @@
+# Project-local clangd MCP; see docs/cpp-tooling.md.
+[mcp_servers.clangd]
+command = "sh"
+args = ["-c", '''
+workspace=$(git rev-parse --show-toplevel) || exit
+exec mcp-language-server --workspace "$workspace" --lsp /usr/bin/clangd -- \
+    --background-index --compile-commands-dir="$workspace/build/integration"
+''']
