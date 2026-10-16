@@ -2,6 +2,8 @@ name: Linux Kea acceptance
 
 on:
   push:
+    branches: ['**']
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -66,23 +68,44 @@ jobs:
       - name: Build verified upstream Kea 3.2.1 from scratch
         run: python3 scripts/build_kea.py --work-dir build/upstream --jobs 2 > build/upstream.log 2>&1
       - name: Build hook with warnings as errors and require every integration test
-        run: python3 scripts/integration.py --kea-prefix build/upstream/install --build-dir build/integration --jobs 2
-      - name: Install and verify the hook artifact
+        run: python3 scripts/integration.py --kea-prefix build/upstream/install --build-dir build/integration --jobs 2 > build/integration.log 2>&1
+      - name: Package the tested hook
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
-          cmake --install build/integration --prefix "$PWD/build/stage"
+          python3 -B scripts/package_release.py --kea-prefix build/upstream/install \
+            --build-dir build/integration --output-dir build/release --tag "$RELEASE_TAG" \
+            > build/packaging.log 2>&1
+      - name: Verify checksum and install the packaged hook
+        run: |
+          cd build/release
+          sha256sum --check *.sha256
+          tar -tzf *.tar.gz > ../archive-contents.txt
+          cd ../..
+          mkdir -p build/package-stage
+          tar -xzf build/release/*.tar.gz -C build/package-stage --strip-components=1
           python3 scripts/verify_artifact.py \
-            --library build/stage/lib/kea/hooks/libdhcp_db_commands.so \
+            --library build/package-stage/lib/kea/hooks/libdhcp_db_commands.so \
             --kea-prefix build/upstream/install --forbid-path "$GITHUB_WORKSPACE"
           LD_LIBRARY_PATH="$PWD/build/upstream/install/lib" python3 -B tests/smoke.py \
             --server "$PWD/build/upstream/install/sbin/kea-dhcp4" \
-            --hook "$PWD/build/stage/lib/kea/hooks/libdhcp_db_commands.so" \
-            --work-dir "$PWD/build/staged-lifecycle"
+            --hook "$PWD/build/package-stage/lib/kea/hooks/libdhcp_db_commands.so" \
+            --work-dir "$PWD/build/packaged-lifecycle" > build/packaged-lifecycle.log 2>&1
       - name: Remove test-only AppArmor profile
         if: always()
         run: |
           if test -f "$RUNNER_TEMP/kea-userns/profile"; then
             sudo apparmor_parser -R "$RUNNER_TEMP/kea-userns/profile"
           fi
+      - name: Preserve verified release archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: versioned-release
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            build/release/*.tar.gz
+            build/release/*.sha256
       - name: Preserve build and test diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -95,5 +118,36 @@ jobs:
             build/upstream/toolchain.txt
             build/upstream/config.report
             build/upstream/build/meson-logs/meson-log.txt
+            build/integration.log
+            build/packaging.log
+            build/packaged-lifecycle.log
+            build/archive-contents.txt
+            build/integration/release-build.json
             build/integration/ctest-results.xml
             build/integration/Testing/Temporary/LastTest.log
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [quality, integration]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Download verified artifacts from this run and publish the tagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          gh run download "$RUN_ID" --name versioned-release --dir build/release
+          cd build/release
+          sha256sum --check *.sha256
+          cd ../..
+          gh release create "$RELEASE_TAG" build/release/*.tar.gz build/release/*.sha256 \
+            --verify-tag --title "$RELEASE_TAG" --notes-file docs/release-notes.md

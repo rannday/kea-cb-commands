@@ -80,6 +80,19 @@ target_link_options(kea_db_commands PRIVATE -Wl,-z,defs)
 include(GNUInstallDirs)
 install(TARGETS kea_db_commands LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/kea/hooks)
 
+# Release metadata is separate from Kea's required version() ABI export.
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/release-build.json" CONTENT
+"{
+  \"version\": \"${PROJECT_VERSION}\",
+  \"kea_version\": \"${KEA_VERSION}\",
+  \"build_type\": \"${CMAKE_BUILD_TYPE}\",
+  \"cxx_standard\": \"${CMAKE_CXX_STANDARD}\",
+  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",
+  \"system\": \"${CMAKE_SYSTEM_NAME}\",
+  \"architecture\": \"${CMAKE_SYSTEM_PROCESSOR}\"
+}
+")
+
 include(CTest)
 if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)

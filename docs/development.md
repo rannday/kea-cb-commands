@@ -33,6 +33,9 @@ All new repository-local generated output belongs under ignored `build/`:
 | `build/integration/` | Full CMake/CTest build, fixture work directories and JUnit report |
 | `build/stage/` | Staged hook installation |
 | `build/staged-lifecycle/` | Staged-artifact lifecycle fixture |
+| `build/release/` | Versioned release archives and SHA-256 checksums |
+| `build/package-stage/` | Extracted release installation |
+| `build/packaged-lifecycle/` | Packaged-artifact lifecycle fixture |
 | `build/cache/ruff/` | Ruff cache |
 | `build/legacy/` | Archived root build trees, virtual environment, wheels and logs |
 
@@ -100,3 +103,4 @@ The installed-artifact export, dependency and staged loading commands are in the
 [build guide](reproducible-builds.md#shared-library-verification-and-compatibility).
 Source checks, lifecycle loading, SQL integration and packet integration provide
 different evidence; a partial CTest pass does not establish the full gate.
+See the [release procedure](releases.md) for packaging and verifying a candidate.

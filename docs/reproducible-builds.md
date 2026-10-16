@@ -138,18 +138,23 @@ host-policy change. No local privilege bypass is automated.
 
 ## CI architecture and privilege boundary
 
-[`ci.yml`](../.github/workflows/ci.yml) defines two Ubuntu 24.04 jobs:
+[`ci.yml`](../.github/workflows/ci.yml) defines three Ubuntu 24.04 jobs:
 
 1. Fast formatting, Ruff, JSON/relative documentation links/whitespace checks and
    Python unit tests.
-2. A fresh verified Kea build, hook build, strict six-test gate, staged install
-   and artifact inspection. No upstream build cache is restored.
+2. A fresh verified Kea build, hook build, strict six-test gate, versioned archive,
+   checksum verification, extracted install and artifact/lifecycle inspection.
+   No upstream build cache is restored.
+3. Publication of the verified archive/checksum after both jobs succeed, only
+   for an explicit matching version-tag push. Branches, PRs and manual dispatch
+   do not publish. See the [release procedure](releases.md).
 
 Actions are pinned to commit SHAs, checkout credentials are not persisted, and
-workflow permissions are read-only. Diagnostic reports are retained for seven
-days. Database directories, generated credential files and release packages are
-excluded from the upload paths. Test credentials are disposable; never supply
-production credentials to these jobs. CI does not publish or deploy anything.
+workflow permissions default to read-only. Only the tag publication job has
+`contents: write` and `actions: read`. Diagnostic reports and separately uploaded
+verified archives are retained for seven days. Database directories and generated
+credential files are excluded from upload paths. Test credentials are disposable;
+never supply production credentials to these jobs. CI never deploys to a server.
 
 Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor. On the
 ephemeral CI VM only, a copied `unshare` executable receives an executable-specific
@@ -192,7 +197,8 @@ Kea and this hook must agree on the C++ ABI, including the standard library and
 libstdc++ dual-ABI setting, compiler ABI flags and compatible Boost/runtime
 dependencies. Build both with a compatible toolchain; do not mix static Kea
 copies or Windows/MSYS2 libraries into a Linux server. The artifact is not a
-portable binary distribution. SQL connector, OpenSSL, libc and libstdc++ symbol
+portable binary distribution across arbitrary runtimes. SQL connector, OpenSSL,
+libc and libstdc++ symbol
 requirements come from the actual build environment. The verifier prints symbol
 version requirements for inspection. Only unmodified Kea 3.2.1 is runtime-tested.
 The staged-artifact smoke test also verifies load, reload, unload and shutdown in
@@ -251,5 +257,6 @@ not historical Milestone 5 results or a GitHub Actions success claim.
 
 The current [Milestone 9 readiness record](release-readiness.md) adds focused
 concurrent-request coverage and installation/operations guidance. Performance
-and scale certification and portable release packaging remain unverified;
-the existing exclusive-writer policy still applies.
+and scale certification and binary portability across runtimes remain unverified;
+the existing exclusive-writer policy still applies. Versioned packaging and its
+local verification are described in the [release procedure](releases.md).

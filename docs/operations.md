@@ -5,6 +5,8 @@ installation. PostgreSQL 15 and MariaDB 10.11 are runtime-tested; Oracle MySQL,
 other Kea versions and portable binary distribution are unverified. Follow
 [reproducible builds](reproducible-builds.md) for build and acceptance commands,
 and [development](development.md) when reusing an existing installed prefix.
+For a versioned archive, follow [release installation](release-install.md),
+including its platform/runtime manifest and checksum checks.
 
 ## Install and check
 

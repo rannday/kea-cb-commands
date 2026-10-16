@@ -25,7 +25,22 @@ See the exact [get/set/delete contracts](docs/commands.md) and
 The hook requires one configured backend. It does not implement commercial
 `cb_cmds` compatibility, shared-network management, option mutations or DHCPv6.
 
-## Build and install
+## Obtain a release
+
+The initial release version is **v0.1.0**. Once published, archives and SHA-256
+checksums are available from [GitHub Releases](https://github.com/rannday/kea-cb-commands/releases).
+Follow the [release installation guide](docs/release-install.md) to verify,
+stage and load the hook. The archive includes the library, license, install
+instructions, release notes and a native dependency manifest; it bundles no Kea
+or SQL/system libraries.
+
+Local verification covers **Debian 12 WSL2, Linux x86_64**, with PostgreSQL 15
+and MariaDB 10.11. Ubuntu 24.04 CI verification is pending. Choose a matching
+platform/runtime and Kea C++ ABI; the archives are not portable across arbitrary
+Linux installations. See [release notes](docs/release-notes.md) for limitations.
+Public release publication remains pending maintainer approval.
+
+## Build and install from source
 
 Use native Linux or Debian WSL2 with a C++14 compiler, CMake/CTest, pkg-config
 and matching shared Kea libraries and development headers. SQL integration also
@@ -124,6 +139,8 @@ PostgreSQL supports the tested SELECT-only account.
 - [Architecture](docs/architecture.md) and [upstream feasibility evidence](docs/feasibility.md)
 - [Development and output layout](docs/development.md)
 - [Reproducible builds, quality, CI and acceptance](docs/reproducible-builds.md)
+- [Release installation](docs/release-install.md), [notes](docs/release-notes.md)
+  and [maintainer release procedure](docs/releases.md)
 
 Original code is licensed under [MPL-2.0](LICENSE). This project is independent
 of ISC and does not use proprietary hook source or binaries.
