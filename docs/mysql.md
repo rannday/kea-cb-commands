@@ -12,6 +12,45 @@ rejected rather than implicitly selecting one or merging overlapping subnet IDs.
 Milestone 4 adds the same native minimal subnet mutation as PostgreSQL; see
 [the exact command contract](commands.md).
 
+## Configure Kea
+
+For deployment, initialize a new database with the official Kea 3.2.1 MySQL
+schema using the matching `kea-admin db-init mysql` procedure. Never initialize
+an existing database. The private harness described below is for acceptance
+testing, not installation of a production database.
+
+Add these fields to the existing `Dhcp4` configuration, replacing the absolute
+paths and connection values for your installation:
+
+```json
+"hooks-libraries": [
+  {"library": "/absolute/kea/lib/kea/hooks/libdhcp_mysql.so"},
+  {"library": "/absolute/kea/lib/kea/hooks/libdhcp_db_commands.so"}
+],
+"config-control": {
+  "config-fetch-wait-time": 0,
+  "config-databases": [
+    {"type": "mysql", "host": "127.0.0.1", "port": 3306,
+     "name": "kea_config", "user": "kea_config_writer",
+     "on-fail": "serve-retry-continue",
+     "max-reconnect-tries": 30, "reconnect-wait-time": 1000}
+  ]
+}
+```
+
+The backend type is `mysql` for MariaDB too. Configure exactly one database and
+load its upstream hook before this hook. Both hooks, libraries and the daemon
+must come from the matching Kea build. The example deliberately omits the
+password: supply credentials through your protected Kea configuration. Restrict
+the account to the intended schema; native preparation needs
+`SELECT, INSERT, UPDATE, DELETE`, and mutations also need `EXECUTE` for the
+official audit routines. Do not use the database administrator account.
+
+With `config-fetch-wait-time: 0`, persisted writes require an explicit pull,
+reload or restart to affect DHCP service. See the
+[release operations checklist](operations.md) for installation validation,
+control-channel security and outage recovery.
+
 ## Prerequisites and invocation
 
 Provide an unmodified Kea 3.2.1 build with MySQL support, its matching

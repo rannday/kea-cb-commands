@@ -249,7 +249,7 @@ The JUnit evidence is `build-m6-final/ctest-results.xml`.
 CI remains configured and unexecuted; these are local Milestone 6 results,
 not historical Milestone 5 results or a GitHub Actions success claim.
 
-The next recommended milestone is ABI/install compatibility and recovery/scale
-testing of the existing command contract, including its exclusive-writer policy.
-Additional configuration commands and production release packaging remain later
-work.
+The current [Milestone 9 readiness record](release-readiness.md) adds focused
+concurrent-request coverage and installation/operations guidance. Performance
+and scale certification and portable release packaging remain unverified;
+the existing exclusive-writer policy still applies.

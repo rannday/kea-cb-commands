@@ -314,7 +314,12 @@ def run_case(args, directory, multithreading):
                 pg_started = False
                 assert send("config-backend-pull")["result"] != 0
                 assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
-                    "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}})["result"] == 1
+                    "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}}) == {
+                        "result": 1, "text": (
+                            "Configuration backend write failed or unavailable; "
+                            "reconcile backend state before retrying.")}
+                assert require_success(send("db-commands-diagnostic"))[
+                    "database-connectivity-tested"] is False
                 # Native reconnect removes the broken backend: a subsequent
                 # pull can succeed as a no-op. Check runtime, not status alone.
                 require_success(send("config-backend-pull"))

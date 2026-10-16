@@ -372,7 +372,12 @@ def run_case(args, directory, multithreading):
                                 "Configuration backend deletion failed or unavailable; "
                                 "reconcile backend state before retrying.")}
                     assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
-                        "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}})["result"] == 1
+                        "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}}) == {
+                            "result": 1, "text": (
+                                "Configuration backend write failed or unavailable; "
+                                "reconcile backend state before retrying.")}
+                    assert require_success(send("db-commands-diagnostic"))[
+                        "database-connectivity-tested"] is False
                     # Reconnect removes the broken backend; later pulls can
                     # report success without applying any configuration.
                     require_success(send("config-backend-pull"))

@@ -59,9 +59,9 @@ export/dependency verification; the commands above run lifecycle coverage only.
 
 Configure Kea's native SQL backend as described in
 [PostgreSQL setup](docs/postgresql.md#configure-kea) or
-[MariaDB setup](docs/mysql.md). Load the matching upstream SQL hook before this
-hook. For example, add these entries to the existing `Dhcp4` configuration,
-using absolute paths inside Kea's permitted hook directory:
+[MariaDB setup](docs/mysql.md#configure-kea). Load the matching upstream SQL hook
+before this hook. For example, add these entries to the existing `Dhcp4`
+configuration, using absolute paths inside Kea's permitted hook directory:
 
 ```json
 "hooks-libraries": [
@@ -118,6 +118,8 @@ PostgreSQL supports the tested SELECT-only account.
 - [Command contracts and explicit activation](docs/commands.md)
 - [PostgreSQL setup and coverage](docs/postgresql.md) and [MariaDB setup and coverage](docs/mysql.md)
 - [Backend selection, tags and recovery](docs/backend-behavior.md)
+- [Installation checks, security and troubleshooting](docs/operations.md)
+- [Milestone 9 release assessment and validation](docs/release-readiness.md)
 - [Pool semantics and packet verification](docs/pools.md)
 - [Architecture](docs/architecture.md) and [upstream feasibility evidence](docs/feasibility.md)
 - [Development and output layout](docs/development.md)

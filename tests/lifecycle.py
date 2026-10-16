@@ -2,6 +2,8 @@
 
 # SPDX-License-Identifier: MPL-2.0
 import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 from mutation import request
 from smoke import require_success
@@ -160,5 +162,40 @@ def verify_lifecycle(send, snapshot, sql, config, save):
     require_success(send("cb-subnet4-del", delete_request(id=921, **{"server-tag": "all"})))
     require_success(send("config-backend-pull"))
     assert 921 not in active()
+
+    # Independent control connections arrive together. Kea must serialize the
+    # preflight and native mutation even when packet multithreading is enabled.
+    # Two different IDs competing for one prefix must never rename each other.
+    def simultaneous(name, arguments):
+        barrier = Barrier(2)
+
+        def invoke(argument):
+            barrier.wait(timeout=10)
+            return send(name, argument)
+
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            return list(workers.map(invoke, arguments))
+
+    runtime = active()
+    audit_id = int(sql("SELECT COALESCE(MAX(id),0) FROM dhcp4_audit_revision"))
+    requests = [request(identity, "198.22.0.0/24") for identity in (930, 931)]
+    responses = simultaneous("cb-subnet4-set", requests)
+    assert sorted(response["result"] for response in responses) == [0, 1], responses
+    winner = requests[next(i for i, response in enumerate(responses)
+                           if response["result"] == 0)]["subnet4"]["id"]
+    loser = 931 if winner == 930 else 930
+    assert checked("cb-subnet4-get", {"id": winner}, 0)["arguments"]["subnet4"][0]["id"] == winner
+    checked("cb-subnet4-get", {"id": loser}, 3)
+    assert int(sql("SELECT COUNT(*) FROM dhcp4_audit a WHERE a.revision_id>" +
+                   str(audit_id))) == 1, "Rejected concurrent write left audit changes"
+    before = snapshot()
+    reads = simultaneous("cb-subnet4-list", [{}, {}])
+    assert reads[0] == reads[1] and reads[0]["result"] == 0, reads
+    assert snapshot() == before
+    responses = simultaneous("cb-subnet4-del", [delete_request(id=winner)] * 2)
+    assert sorted(response["result"] for response in responses) == [0, 3], responses
+    checked("cb-subnet4-get", {"id": winner}, 3)
+    assert active() == runtime, "Concurrent mutations activated configuration"
+    print("PASS: concurrent control connections serialize conflicting writes, reads and deletion")
     print("PASS: native get/delete by ID/prefix, exact tags, guards, child cleanup, "
           "audit/timestamps, unrelated rows, explicit pull/reload activation")
