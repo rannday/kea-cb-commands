@@ -1,5 +1,9 @@
 # Native MySQL/MariaDB integration
 
+The current target is MariaDB 12.3 LTS, including its latest maintenance patch;
+see [database support](database-support.md). Older milestone records below
+retain their original versions. MariaDB continues to use Kea's `mysql` backend.
+
 Milestone 3.5 uses Debian 12 WSL2, MariaDB 10.11.19, Connector/C 3.3.20 and
 unmodified Kea 3.2.1 with its official MySQL schema (35.0). Oracle MySQL has not
 been runtime-tested. No packages, persistent services or system databases were
@@ -65,7 +69,8 @@ Run as an ordinary non-root user. Do not point at a production database.
 
 ### Build the matching native backend
 
-On Debian 12 the required database packages are `mariadb-server`,
+Select the official MariaDB 12.3 repository for your distribution first; the
+Debian 12 defaults provide an older series. Required packages are `mariadb-server`,
 `mariadb-client`, and `libmariadb-dev-compat` (which depends on `libmariadb-dev`).
 Inspect installed packages before installing anything. Package installation must
 not start or enable a persistent database service; the harness starts its own

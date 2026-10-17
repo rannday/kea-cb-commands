@@ -31,7 +31,9 @@ Version-pinned source links become available when the approved tag is created.
   libraries; the target loader must also resolve their dependencies.
 - Kea's matching upstream `libdhcp_pgsql.so` or `libdhcp_mysql.so`, initialized
   native configuration-backend schema, and a reachable SQL server.
-  PostgreSQL 15 and MariaDB 10.11 are tested. MariaDB uses backend type `mysql`;
+  Original v0.1.0 verification used PostgreSQL 15 and MariaDB 10.11. Current
+  development targets PostgreSQL 18 and MariaDB 12.3 LTS; see
+  [database support](database-support.md). MariaDB uses backend type `mysql`;
   Oracle MySQL is unverified. SQL servers may run separately from Kea.
 
 The archive contains only the hook, MPL-2.0 license, this guide, release notes

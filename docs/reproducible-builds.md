@@ -46,7 +46,10 @@ The integration gate additionally needs PostgreSQL server/client tools, MariaDB
 server/client/bootstrap tools, `ip`, `unshare` and binutils. It runs as a normal
 user, because PostgreSQL refuses initialization as root.
 
-On an Ubuntu 24.04 development machine, install these prerequisites deliberately:
+Use PostgreSQL 18 and MariaDB 12.3 LTS from their official repositories, as
+specified in [database support](database-support.md). Configure those repositories
+for your distribution before installing prerequisites; the distribution defaults
+can select older server series. On Ubuntu 24.04:
 
 ```bash
 sudo apt-get update
@@ -54,13 +57,14 @@ sudo apt-get install --no-install-recommends -y \
   build-essential cmake ninja-build pkg-config python3-venv bison flex \
   ca-certificates libboost-dev libboost-system-dev liblog4cplus-dev \
   libssl-dev libpq-dev libmariadb-dev libmariadb-dev-compat \
-  postgresql postgresql-client mariadb-server mariadb-client \
+  postgresql-18 postgresql-client-18 mariadb-server mariadb-client \
   iproute2 util-linux binutils
 ```
 
-Debian 12 uses the same package names. Local verification uses Debian 12; CI is
-configured for Ubuntu 24.04. No local system packages are installed by the build
-scripts. The scripts detect missing dependencies and fail with diagnostics.
+Debian 12 uses the same package names with the matching official repositories.
+Local verification uses Debian 12; CI is configured for Ubuntu 24.04. No local
+system packages are installed by the build scripts. The scripts detect missing
+dependencies and fail with diagnostics.
 
 For output layout and safe reuse of an existing Kea installation, see
 [local development](development.md#generated-output-layout).
@@ -105,6 +109,10 @@ python3 -B -m unittest discover -s scripts -p 'test_*.py' -v
 python3 scripts/integration.py --kea-prefix build/upstream/install \
   --build-dir build/integration --jobs 2
 ```
+
+The runner requires PostgreSQL 18 and MariaDB 12.3 LTS server binaries and saves
+exact versions in `build/integration/database-versions.json`. Ensure `pg_config`
+selects PostgreSQL 18 when multiple majors are installed.
 
 The strict runner selects only that prefix's Kea metadata and shared libraries,
 clears stale Kea CMake discovery, builds Release with `-Wall -Wextra -Wpedantic

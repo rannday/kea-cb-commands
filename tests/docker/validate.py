@@ -36,6 +36,9 @@ def initialize(backend, database):
                   "-U", "kea_test", "-d", "postgres"]
         run([*client, "-c", f"DROP DATABASE IF EXISTS {database}"] , env=env)
         run([*client, "-c", f"CREATE DATABASE {database}"] , env=env)
+        version = run([*client, "-At", "-c", "SHOW server_version"], env=env,
+                      capture_output=True, text=True).stdout.strip()
+        assert version.startswith("18.") and version.split()[0][3:].isdigit(), version
         user, host = "kea_test", "postgres"
     else:
         env = dict(os.environ, MYSQL_PWD=PASSWORD)
@@ -44,7 +47,14 @@ def initialize(backend, database):
                            "CREATE USER IF NOT EXISTS 'kea_test'@'%' IDENTIFIED BY "
                            f"'{PASSWORD}'; GRANT ALL ON {database}.* TO 'kea_test'@'%';"
                            ).encode(), env=env)
+        version = run([*client, "-N", "-B", "-e", "SELECT VERSION()"], env=env,
+                      capture_output=True, text=True).stdout.strip()
+        assert version.startswith("12.3.") and "-MariaDB" in version, version
         user, host = "kea_test", "mariadb"
+    with (EVIDENCE / "database-versions.jsonl").open("a") as output:
+        output.write(json.dumps({"backend": backend, "database": database,
+                                 "server-version": version}) + "\n")
+    print(f"{backend} server: {version}", flush=True)
     # kea-admin uses its matching installed schema and SQL clients.
     run([str(PREFIX / "sbin/kea-admin"), "db-init", backend,
          "-h", host, "-u", user, "-p", PASSWORD, "-n", database])
@@ -93,7 +103,7 @@ def case(backend, multithreading):
                             "thread-pool-size": 2, "packet-queue-size": 64},
         "hooks-libraries": [
             {"library": str(PREFIX / f"lib/kea/hooks/libdhcp_{backend}.so")},
-            {"library": str(HOOK), "parameters": {"allow-mutations": True}}],
+            {"library": str(HOOK)}],
         "config-control": {"config-fetch-wait-time": 0, "config-databases": [connection]},
         "control-sockets": [{"socket-type": "http", "socket-address": "127.0.0.1",
                              "socket-port": 18000,
@@ -232,10 +242,12 @@ def main():
         lifecycle = EVIDENCE / f"lifecycle-{int(multithreading)}"
         lifecycle.mkdir(exist_ok=True)
         try:
-            run_case(SERVER_BIN, HOOK, lifecycle, multithreading)
+            # The pinned published v0.1.0 predates mutation admission.
+            run_case(SERVER_BIN, HOOK, lifecycle, multithreading, mutation_admission=False)
         finally:
             for name in ("kea.json", "test-credentials"):
                 (lifecycle / name).unlink(missing_ok=True)
+    (EVIDENCE / "database-versions.jsonl").unlink(missing_ok=True)
     for backend in ("pgsql", "mysql"):
         for multithreading in (False, True):
             case(backend, multithreading)

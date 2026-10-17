@@ -25,12 +25,17 @@ tests/docker/run.sh clean        # Also remove this project's disposable volumes
 ```
 
 `test` returns nonzero on failure and copies logs, command responses, lease files,
-dependency/export checks, package versions and release provenance into
+dependency/export checks, SQL server versions, package versions and release provenance into
 `build/docker/results/`. Generated credential files are removed. Logs can include
 the public disposable database password; never substitute production credentials.
 Containers remain available for diagnosis until `stop` or `clean`. After `clean`,
 running `test` initializes fresh databases again. Images and build cache remain;
 the script never prunes other Docker resources.
+
+The database images use series-specific volumes (`postgres18-data` and
+`mariadb123-data`) and PostgreSQL 18's `/var/lib/postgresql` mount. They do not
+reuse or migrate the old series' data volumes. See the current
+[database policy](../../docs/database-support.md).
 
 The fixed project name is `kea-cb-release-validation`. Do not run two copies
 concurrently. Docker client/buildx state defaults to ignored `build/docker/client/`
@@ -39,8 +44,8 @@ so this harness does not change global Docker configuration. An existing
 
 ## Files and installation
 
-- `compose.yml`: digest-pinned Ubuntu runtime build, PostgreSQL 15.18 and MariaDB
-  10.11.16 services, private internal network and disposable volumes.
+- `compose.yml`: digest-pinned Ubuntu runtime build, PostgreSQL 18.6 and MariaDB
+  12.3.3 LTS services, private internal network and disposable volumes.
 - `Dockerfile`: builds only upstream Kea with the existing checksum-pinned
   [Kea 3.2.1 builder](../../scripts/build_kea.py), then installs runtime packages
   and the published hook in a separate stage. Native SQL hooks and schemas come
@@ -76,7 +81,10 @@ Before functional tests, the harness checks Ubuntu/architecture, Kea version,
 required C exports and `ldd` resolution for the published hook and both native
 SQL hooks. Kea's `-T` validates generated configurations and loads the libraries.
 The lifecycle helper verifies registration, missing-backend errors, unload,
-reload and clean shutdown with packet multithreading off and on.
+reload and clean shutdown with packet multithreading off and on. The pinned
+v0.1.0 release predates mutation admission, so its lifecycle call explicitly
+excludes those newer assertions. Current-source lifecycle tests keep admission
+checks enabled by default.
 
 Each of four PostgreSQL/MariaDB and threading-mode combinations initializes its
 own database with the matching `kea-admin`, then checks empty listing, creation,
@@ -109,6 +117,15 @@ minimal-subnet and explicit-activation limitations still apply; see
 [operations](../../docs/operations.md).
 
 ## Verified execution
+
+On 2026-10-17, the same Ubuntu 24.04 amd64 release harness passed with pinned
+PostgreSQL 18.6 and MariaDB 12.3.3 LTS images. Actual SQL versions were recorded
+in `database-versions.jsonl`. All four backend/threading combinations and eight
+DORA exchanges passed, including CRUD, rejection recovery, restart persistence,
+explicit activation and retained leases. The disposable containers, network and
+new series-specific volumes were removed after evidence collection.
+
+The earlier result below records the previous database targets.
 
 On 2026-10-16, Docker Desktop's Linux x86_64 engine 29.8.2 completed two full
 runs from Debian WSL, with this project's containers, network and volumes removed

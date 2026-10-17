@@ -65,6 +65,34 @@ class ReportTests(unittest.TestCase):
             integration.verify_cleanup(build_dir)
 
 
+class DatabaseVersionTests(unittest.TestCase):
+    def versions(self, postgres, mariadb):
+        with patch("integration.subprocess.check_output", side_effect=[postgres, mariadb]):
+            return integration.database_versions(Path("/pg/bin"), "/usr/sbin/mariadbd")
+
+    def test_supported_vendor_versions(self):
+        versions = self.versions(
+            "postgres (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+2)",
+            "/usr/sbin/mariadbd  Ver 12.3.3-MariaDB-deb12 for debian-linux-gnu",
+        )
+        self.assertEqual(versions["postgresql"]["version"], "18.6")
+        self.assertEqual(versions["mariadb"]["version"], "12.3.3")
+
+    def test_old_postgres_and_prereleases_rejected(self):
+        for version in ("15.19", "19rc1", "18beta1", "18.6rc1"):
+            with self.subTest(version=version), self.assertRaisesRegex(
+                RuntimeError, "Expected PostgreSQL 18"
+            ):
+                self.versions(f"postgres (PostgreSQL) {version}", "")
+
+    def test_old_rolling_and_oracle_mysql_rejected(self):
+        for version in ("10.11.19-MariaDB", "13.0.2-MariaDB", "12.3.3"):
+            with self.subTest(version=version), self.assertRaisesRegex(
+                RuntimeError, "MariaDB 12.3 LTS"
+            ):
+                self.versions("postgres (PostgreSQL) 18.6", f"mysqld Ver {version}")
+
+
 class EnvironmentTests(unittest.TestCase):
     def test_system_dependency_search_and_assertions_preserved(self):
         prefix = Path("/test/kea")

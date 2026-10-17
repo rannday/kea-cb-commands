@@ -1,7 +1,7 @@
 name: kea-cb-release-validation
 services:
   postgres:
-    image: postgres:15.18-bookworm@sha256:e8db9bd3e9e1751eb639fb17be53cc6d1b62a322adf75b99e791767a7a16ce69
+    image: postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
     platform: linux/amd64
     environment:
       POSTGRES_USER: kea_test
@@ -11,10 +11,10 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
-    volumes: [postgres-data:/var/lib/postgresql/data]
+    volumes: [postgres18-data:/var/lib/postgresql]
     networks: [test]
   mariadb:
-    image: mariadb:10.11.16@sha256:8a99982dced50264560fd8ada91aa34c276636bc02713f01f252c540930f9915
+    image: mariadb:12.3.3@sha256:99c125f103f5d081ebbc9ffe064e63daf7f688ac33a5f7f29af2d7260a96debf
     platform: linux/amd64
     environment:
       MARIADB_ROOT_PASSWORD: docker-only-not-a-secret
@@ -24,7 +24,7 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
-    volumes: [mariadb-data:/var/lib/mysql]
+    volumes: [mariadb123-data:/var/lib/mysql]
     networks: [test]
   kea:
     build:
@@ -42,6 +42,6 @@ networks:
   test:
     internal: true
 volumes:
-  postgres-data:
-  mariadb-data:
+  postgres18-data:
+  mariadb123-data:
   evidence:

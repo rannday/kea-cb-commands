@@ -103,9 +103,11 @@ password-authenticated connections; do not put real credentials in tracked files
 
 ## Reproducible test
 
-On Debian 12 the required packages are `postgresql-15`, `postgresql-client-15`
-and `libpq-dev` (the latter is also required when building Kea). PostgreSQL 15 is
-the distribution version used for this test, not a hook-specific requirement.
+The current target is PostgreSQL 18, including its latest maintenance patch;
+see [database support](database-support.md). Required packages are
+`postgresql-18`, `postgresql-client-18` and `libpq-dev` from the official
+PostgreSQL repository for your distribution. The latter is also required when
+building Kea. Ensure `pg_config --bindir` selects the PostgreSQL 18 tools.
 Install missing packages yourself; tests never install packages, change system
 configuration, start persistent services, or touch the distribution's cluster.
 

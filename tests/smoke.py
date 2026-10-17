@@ -42,7 +42,8 @@ def require_success(response):
     return response.get("arguments")
 
 
-def run_case(server, hook, directory, multithreading):
+def run_case(server, hook, directory, multithreading, *, mutation_admission=True):
+    """Test current admission by default; v0.1.0 predates that contract."""
     password = secrets.token_urlsafe(24)
     credentials_path = directory / "test-credentials"
     credentials_path.write_text(f"hook-test:{password}", encoding="ascii")
@@ -136,11 +137,12 @@ def run_case(server, hook, directory, multithreading):
             if SUBNET_LIST not in names:
                 raise AssertionError("Subnet list command was not registered")
             assert "cb-subnet4-set" in names
-            verify_denied(send)
-            config["Dhcp4"]["hooks-libraries"][0]["parameters"] = {"allow-mutations": True}
-            save()
-            require_success(send("config-reload"))
-            assert require_success(send(DIAGNOSTIC))["allow-mutations"] is True
+            if mutation_admission:
+                verify_denied(send)
+                config["Dhcp4"]["hooks-libraries"][0]["parameters"] = {"allow-mutations": True}
+                save()
+                require_success(send("config-reload"))
+                assert require_success(send(DIAGNOSTIC))["allow-mutations"] is True
             for name in ("cb-subnet4-get", "cb-subnet4-del"):
                 assert name in names
                 arguments = {"id": 900}
@@ -188,35 +190,36 @@ def run_case(server, hook, directory, multithreading):
             save()
             require_success(send("config-reload"))
             require_success(send(DIAGNOSTIC))
-            verify_denied(send)
-            for parameters in ({"allow-mutations": False}, {}, {"allow-mutations": True}):
-                config["Dhcp4"]["hooks-libraries"][0]["parameters"] = parameters
+            if mutation_admission:
+                verify_denied(send)
+                for parameters in ({"allow-mutations": False}, {}, {"allow-mutations": True}):
+                    config["Dhcp4"]["hooks-libraries"][0]["parameters"] = parameters
+                    save()
+                    require_success(send("config-reload"))
+                    if parameters.get("allow-mutations", False):
+                        assert require_success(send(DIAGNOSTIC))["allow-mutations"] is True
+                    else:
+                        verify_denied(send)
+                # Kea owns failed-load cleanup. Remove the writer first, then reject
+                # invalid candidates and reload an omitted/false role in this process.
+                config["Dhcp4"]["hooks-libraries"] = []
                 save()
                 require_success(send("config-reload"))
-                if parameters.get("allow-mutations", False):
-                    assert require_success(send(DIAGNOSTIC))["allow-mutations"] is True
-                else:
-                    verify_denied(send)
-            # Kea owns failed-load cleanup. Remove the writer first, then reject
-            # invalid candidates and reload an omitted/false role in this process.
-            config["Dhcp4"]["hooks-libraries"] = []
-            save()
-            require_success(send("config-reload"))
-            invalid_parameters = [
-                {"allow-mutations": value} for value in
-                ("true", "false", 0, 1, 1.5, None, [], {})
-            ] + [{"unknown": True}, {"allow-mutations": True, "unknown": False},
-                 None, [], "true", False, 1]
-            for parameters in invalid_parameters:
-                config["Dhcp4"]["hooks-libraries"] = [
-                    {"library": str(hook), "parameters": parameters}]
+                invalid_parameters = [
+                    {"allow-mutations": value} for value in
+                    ("true", "false", 0, 1, 1.5, None, [], {})
+                ] + [{"unknown": True}, {"allow-mutations": True, "unknown": False},
+                     None, [], "true", False, 1]
+                for parameters in invalid_parameters:
+                    config["Dhcp4"]["hooks-libraries"] = [
+                        {"library": str(hook), "parameters": parameters}]
+                    save()
+                    assert send("config-reload")["result"] == 1
+                    assert "cb-subnet4-set" not in require_success(send("list-commands"))
+                config["Dhcp4"]["hooks-libraries"] = [{"library": str(hook)}]
                 save()
-                assert send("config-reload")["result"] == 1
-                assert "cb-subnet4-set" not in require_success(send("list-commands"))
-            config["Dhcp4"]["hooks-libraries"] = [{"library": str(hook)}]
-            save()
-            require_success(send("config-reload"))
-            verify_denied(send)
+                require_success(send("config-reload"))
+                verify_denied(send)
             assert "cb-subnet4-set" in require_success(send("list-commands"))
             for name in ("cb-subnet4-get", "cb-subnet4-del"):
                 assert name in require_success(send("list-commands"))

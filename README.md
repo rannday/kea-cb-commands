@@ -5,8 +5,9 @@ SQL configuration backend. It targets **unmodified Kea 3.2.1 on Linux** and uses
 Kea's native PostgreSQL and MySQL/MariaDB backend APIs and schema. It requires
 no custom Kea distribution, proprietary hooks or Docker.
 
-PostgreSQL 15 and MariaDB 10.11 are integration-tested, including real DHCP
-allocation with packet multithreading enabled and disabled. Oracle MySQL is
+PostgreSQL 18 and MariaDB 12.3 LTS are the current
+[acceptance targets](docs/database-support.md), including real DHCP allocation
+with packet multithreading enabled and disabled. Oracle MySQL is
 unverified. Build against the exact Kea installation that will load the hook;
 compatibility with other Kea versions is not established.
 
@@ -34,8 +35,8 @@ stage and load the hook. The archive includes the library, license, install
 instructions, release notes and a native dependency manifest; it bundles no Kea
 or SQL/system libraries.
 
-Local verification covers **Debian 12 WSL2, Linux x86_64**, with PostgreSQL 15
-and MariaDB 10.11. Ubuntu 24.04 CI verification is pending. Choose a matching
+Local verification covers **Debian 12 WSL2, Linux x86_64**, with PostgreSQL 18
+and MariaDB 12.3 LTS. Ubuntu 24.04 CI verification is pending. Choose a matching
 platform/runtime and Kea C++ ABI; the archives are not portable across arbitrary
 Linux installations. See [release notes](docs/release-notes.md) for limitations.
 Public release publication remains pending maintainer approval.

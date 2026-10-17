@@ -1,7 +1,8 @@
 # Release operations
 
 Use unmodified Kea 3.2.1 and a hook built against that exact shared-library
-installation. PostgreSQL 15 and MariaDB 10.11 are runtime-tested; Oracle MySQL,
+installation. PostgreSQL 18 and MariaDB 12.3 LTS are the current
+[database acceptance targets](database-support.md); Oracle MySQL,
 other Kea versions and portable binary distribution are unverified. Follow
 [reproducible builds](reproducible-builds.md) for build and acceptance commands,
 and [development](development.md) when reusing an existing installed prefix.

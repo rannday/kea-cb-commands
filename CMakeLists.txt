@@ -208,7 +208,9 @@ if(BUILD_TESTING)
                 --mysql-server "${KEA_MYSQL_SERVER}"
                 --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql
                 ${KEA_MULTIPROCESS_ARGUMENTS} ${KEA_SQL_ARGUMENTS})
-        set_tests_properties(mysql_read PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77
+        # Budget MariaDB 12.3 schema/grant probes and both threading modes
+        # without weakening per-operation limits.
+        set_tests_properties(mysql_read PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77
             LABELS MySQL)
         string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
         set_tests_properties(mysql_read PROPERTIES
@@ -226,7 +228,7 @@ if(BUILD_TESTING)
                     --mysql-install-db "${KEA_MYSQL_INSTALL_DB}"
                     --mysql-server "${KEA_MYSQL_SERVER}"
                     --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql-dhcp ${KEA_SQL_ARGUMENTS})
-            set_tests_properties(mysql_dhcp PROPERTIES TIMEOUT 240 SKIP_RETURN_CODE 77
+            set_tests_properties(mysql_dhcp PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77
                 LABELS "MySQL;DHCP"
                 ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
             if(KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS)
@@ -256,7 +258,11 @@ if(BUILD_TESTING)
     if(KEA_DB_COMMANDS_MULTIPROCESS_TESTS)
         foreach(sql_test postgresql_read mysql_read)
             if(TEST ${sql_test})
-                set_tests_properties(${sql_test} PROPERTIES TIMEOUT 300)
+                if(sql_test STREQUAL "mysql_read")
+                    set_tests_properties(${sql_test} PROPERTIES TIMEOUT 600)
+                else()
+                    set_tests_properties(${sql_test} PROPERTIES TIMEOUT 300)
+                endif()
             endif()
         endforeach()
     endif()

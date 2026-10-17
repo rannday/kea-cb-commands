@@ -2,8 +2,10 @@
 """Run all six native integration tests; skipped tests fail this gate."""
 
 import argparse
+import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -93,6 +95,23 @@ def kea_environment(prefix):
     return environment
 
 
+def database_versions(pg_bin, maria_server):
+    """Reject unintended server series before creating disposable databases."""
+    commands = {
+        "postgresql": ([str(pg_bin / "postgres"), "--version"], r"PostgreSQL\) (18\.\d+)(?=\s|$)"),
+        "mariadb": ([maria_server, "--no-defaults", "--version"],
+                    r"\b(12\.3\.\d+)-MariaDB"),
+    }
+    versions = {}
+    for name, (command, pattern) in commands.items():
+        output = subprocess.check_output(command, text=True).strip()
+        match = re.search(pattern, output)
+        if not match:
+            raise RuntimeError(f"Expected PostgreSQL 18 and MariaDB 12.3 LTS; {name}: {output}")
+        versions[name] = {"version": match.group(1), "server": command[0], "output": output}
+    return versions
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kea-prefix", required=True, type=Path)
@@ -137,6 +156,12 @@ def main():
         "KEA_MYSQL_SERVER": required_program("mariadbd", "mysqld"),
         "KEA_MYSQL_INSTALL_DB": required_program("mariadb-install-db", "mysql_install_db"),
     })
+    versions = database_versions(pg_bin, paths["KEA_MYSQL_SERVER"])
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "database-versions.json").write_text(
+        json.dumps(versions, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(versions, indent=2), flush=True)
     environment = kea_environment(prefix)
     sanitizer_logs = None
     if args.sanitizers:

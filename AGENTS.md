@@ -4,10 +4,11 @@
 
 Independent C++14 Linux shared-library hook for unmodified ISC Kea 3.2.1.
 The artifact is `libdhcp_db_commands.so`, loaded by `kea-dhcp4` only.
-PostgreSQL 15 and MariaDB 10.11 are integration-tested; MariaDB uses Kea's
+PostgreSQL 18 and MariaDB 12.3 LTS are the integration targets; MariaDB uses Kea's
 `mysql` backend type. Oracle MySQL is unverified. Kea 3.0.4 is source-assessed
 only; build against the exact Kea installation that will load the hook.
-See [README](README.md) and [architecture](docs/architecture.md).
+See [README](README.md), [database support](docs/database-support.md) and
+[architecture](docs/architecture.md).
 
 ## Implementation map
 

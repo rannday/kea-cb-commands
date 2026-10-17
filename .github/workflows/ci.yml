@@ -40,6 +40,19 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Select PostgreSQL 18 and MariaDB 12.3 LTS repositories
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ca-certificates curl
+          sudo install -d /etc/apt/keyrings
+          sudo curl --fail --silent --show-error --location \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            -o /etc/apt/keyrings/postgresql.asc
+          sudo curl --fail --silent --show-error --location \
+            https://supplychain.mariadb.com/mariadb-keyring-2019.gpg \
+            -o /etc/apt/keyrings/mariadb.gpg
+          echo 'deb [signed-by=/etc/apt/keyrings/postgresql.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' | sudo tee /etc/apt/sources.list.d/pgdg.list
+          echo 'deb [signed-by=/etc/apt/keyrings/mariadb.gpg] https://dlm.mariadb.com/repo/mariadb-server/12.3/repo/ubuntu noble main' | sudo tee /etc/apt/sources.list.d/mariadb.list
       - name: Install ephemeral runner prerequisites
         run: |
           sudo apt-get update
@@ -47,7 +60,7 @@ jobs:
             build-essential cmake ninja-build pkg-config python3-venv bison flex \
             ca-certificates libboost-dev libboost-system-dev liblog4cplus-dev \
             libssl-dev libpq-dev libmariadb-dev libmariadb-dev-compat \
-            postgresql postgresql-client mariadb-server mariadb-client \
+            postgresql-18 postgresql-client-18 mariadb-server mariadb-client \
             iproute2 util-linux apparmor binutils
           python3 -m venv build/quality
           build/quality/bin/pip install --require-hashes --only-binary=:all: -r scripts/requirements-quality.txt
@@ -123,6 +136,7 @@ jobs:
             build/packaged-lifecycle.log
             build/archive-contents.txt
             build/integration/release-build.json
+            build/integration/database-versions.json
             build/integration/ctest-results.xml
             build/integration/Testing/Temporary/LastTest.log
 

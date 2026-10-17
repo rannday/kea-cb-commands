@@ -11,6 +11,13 @@ is local admission, not distributed fencing; one externally enforced writer per
 database is still required. It does not fix native SQL transaction cleanup.
 There is no version bump or alteration of published v0.1.0 artifacts.
 
+# Development database targets (not released)
+
+Acceptance now targets PostgreSQL 18 and MariaDB 12.3 LTS, with exact server
+version evidence, explicit CI repositories and updated Docker image pins.
+See [database support and verification](database-support.md). Kea remains 3.2.1;
+no hook command or native database schema migration is introduced.
+
 # v0.1.0 — initial release
 
 Independent MPL-2.0 DHCPv4 configuration-backend hook for **unmodified ISC Kea
