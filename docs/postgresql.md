@@ -80,7 +80,8 @@ and test connection values:
 ```json
 "hooks-libraries": [
   {"library": "/absolute/hooks/libdhcp_pgsql.so"},
-  {"library": "/absolute/hooks/libdhcp_db_commands.so"}
+  {"library": "/absolute/hooks/libdhcp_db_commands.so",
+   "parameters": {"allow-mutations": true}}
 ],
 "config-control": {
   "config-fetch-wait-time": 0,

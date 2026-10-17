@@ -92,6 +92,12 @@ object, using absolute paths within Kea's permitted hook directory:
 ]
 ```
 
+For current development builds, mutation admission defaults to false. An
+administrative writer must add `"parameters": {"allow-mutations": true}` to
+this hook's entry; a consumer can use false or omit it. Unknown keys and invalid
+types fail loading. This breaking migration does not change the published
+v0.1.0 archive described here. See [migration and qualification status](mutation-admission.md).
+
 Use `libdhcp_mysql.so` for MariaDB. Configure exactly one native backend in
 `config-control`; this hook does not establish connections or read credentials.
 Validate the full Kea configuration and load it in an isolated instance before

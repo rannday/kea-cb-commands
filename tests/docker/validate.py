@@ -93,7 +93,7 @@ def case(backend, multithreading):
                             "thread-pool-size": 2, "packet-queue-size": 64},
         "hooks-libraries": [
             {"library": str(PREFIX / f"lib/kea/hooks/libdhcp_{backend}.so")},
-            {"library": str(HOOK)}],
+            {"library": str(HOOK), "parameters": {"allow-mutations": True}}],
         "config-control": {"config-fetch-wait-time": 0, "config-databases": [connection]},
         "control-sockets": [{"socket-type": "http", "socket-address": "127.0.0.1",
                              "socket-port": 18000,

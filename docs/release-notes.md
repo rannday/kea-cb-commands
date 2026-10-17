@@ -1,3 +1,16 @@
+# Development migration — mutation admission (not released)
+
+Set/delete now require a native boolean hook-library parameter
+`"allow-mutations": true`. Omitted/false means read-only. Invalid types or unknown
+parameter names fail initialization. Diagnostic/list/get remain available;
+diagnostic adds effective `allow-mutations` alongside capability. Existing
+writers must opt in explicitly. See [migration](mutation-admission.md).
+
+Milestone 20 is partial pending SQL/DHCP acceptance and fixture completion. This
+is local admission, not distributed fencing; one externally enforced writer per
+database is still required. It does not fix native SQL transaction cleanup.
+There is no version bump or alteration of published v0.1.0 artifacts.
+
 # v0.1.0 — initial release
 
 Independent MPL-2.0 DHCPv4 configuration-backend hook for **unmodified ISC Kea

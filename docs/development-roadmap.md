@@ -1,12 +1,13 @@
-# Development roadmap after Milestone 19
+# Development roadmap after Milestone 21 qualification
 
 ## Priority and boundaries
 
-The single best next implementation milestone is **M20: explicit mutation
-admission**. It makes deployment intent testable without new SQL or distributed
-coordination. It does not by itself fence external writers or make the project
-production-ready. Follow with deployment fencing, reconciliation and activation
-before adding configuration object families.
+**M21 acceptance is complete for the controlled same-host deployment.**
+M20/M20.1 local admission and non-interruption SQL/DHCP acceptance remain green.
+The next proposed milestone is **M22: native read-only reconciliation evidence**,
+subject to separate review and authorization. Local admission does not fence
+external writers or make the project production-ready. Production restart
+exclusion, durable holds and uncertain-outcome recovery remain open.
 
 This roadmap preserves the standalone native Kea 3.2.1 architecture, PostgreSQL
 and MariaDB, C++14, existing commands and persistence-only mutation behavior.
@@ -17,22 +18,23 @@ No implementation is part of Milestone 19. Historical results remain in
 
 ## Proposed small milestones
 
-### M20 — Explicit mutation admission (recommended next)
+### M20 — Explicit mutation admission (PASS)
 
 - **Objective:** allow a consumer to load read commands while refusing mutations
   before any native backend access.
-- **Exact scope:** propose one boolean hook parameter, `mutations-enabled`.
-  Preserve legacy behavior when absent (default true); deployments must configure
-  the value explicitly. False rejects both set/delete with a fixed contract
-  error. Invalid type fails load. State is immutable for the loaded lifetime and
-  reset on unload. Keep `mutations-supported` as capability; add a distinct
-  effective-admission diagnostic field rather than changing its meaning.
+- **Implemented scope:** native boolean parameter `allow-mutations`, default
+  false. Only explicit true admits set/delete. Admission is checked before
+  parsing or backend access. Invalid types, non-map parameters and unknown keys
+  fail initialization. Permission resets before load/unload and is granted last
+  on successful load. Diagnostic adds effective `allow-mutations`; capability
+  remains `mutations-supported`. This supersedes M19's proposed legacy-compatible
+  `mutations-enabled` name/default in accordance with the M20 requirement.
 - **Expected files:** lifecycle/registration in `src/diagnostic.cc`, admission
   access and callout checks in `src/commands.cc`/`src/commands.h`, lifecycle and
   mutation assertions in `tests/smoke.py` and `tests/mutation.py`, contracts and
   deployment documentation. Confirm the smallest state interface during design.
-- **Acceptance:** absent/true preserve legacy results; false refuses valid and
-  invalid mutation requests before backend resolution; reads work; diagnostic
+- **Acceptance:** absent/false refuse valid and invalid mutation requests before
+  backend resolution; true preserves existing mutation behavior; reads work; diagnostic
   reflects admission; invalid parameter fails load; unload/reload has no stale
   role. Both SQL engines show unchanged data/audit for denied writes. Both packet
   threading modes and the six-test strict suite pass without skips.
@@ -40,7 +42,69 @@ No implementation is part of Milestone 19. Historical results remain in
 - **Exclusions:** authentication, database permissions, leader election, locks,
   per-tag roles, automatic retries, activation and claims of external fencing.
 
-### M21 — Qualify the designated-writer deployment
+#### Verification evidence and remaining boundaries
+
+**M20.1 outcome: PASS (2026-10-16).** Both SQL fixtures use the shared admission
+helper with explicit writer phases and initial read-only phases. All six strict
+CTest tests pass without skips against Kea 3.2.1, PostgreSQL 15.19 and MariaDB
+10.11.19 on Debian 12 WSL2. Both packet-threading modes pass omitted/empty/false
+admission, exact set/delete denial, successful list/get and unchanged SQL
+table/audit snapshots and active state after denied create/update/delete.
+Malformed requests and lifecycle tests without a backend verify admission
+precedence. See the [complete coverage matrix](mutation-admission.md).
+
+Explicit true preserves CRUD, validation/conflicts, tags/selectors, pool
+omission/replacement/removal, audit/rollback, persistence across actual process
+restart and explicit pull/reload activation. Both packet tests pass DORA,
+allocation, persistent memfile leases and retained leases after SQL deletion.
+No automatic activation is introduced. Lifecycle tests also cover invalid
+parameters, failed initialization, registration and no stale writer permission.
+
+Release C++14 with warnings as errors, transport units (6/6), script units
+(25/25), formatting, Ruff lint/static checks, whitespace/local links, artifact
+exports/dependencies and clangd diagnostics pass. Exact commands and current
+logs are under `build/milestone20.1/checks.md`. Earlier PARTIAL attempts and exact
+policy rejections remain in the historical evidence there and under
+`build/milestone20/`. Resume edits used native patches without bypassing policy.
+
+This acceptance explicitly uses `--skip-outages`, forwarded to all four SQL and
+DHCP tests. Deliberate SQL interruption/recovery, retry exhaustion and historical
+crash reproductions were not run; their default test assertions are preserved.
+Docker, sanitizer integration and optional independent-process suites remain
+unrun. The Docker fixture requires a candidate artifact implementing admission;
+published v0.1.0 is unchanged. This historical M20.1 run did not include M21.
+
+**At the M20.1 boundary:** cross-process writer fencing, deployment enforcement,
+reconciliation and activation qualification remained open; see M21 below.
+Production acceptance remains open.
+**Upstream dependency:** native SQL transaction exception safety remains
+unresolved; ISC issue URL is pending confidential submission, not invented.
+
+### M21 — Qualify the designated-writer deployment (PASS, bounded)
+
+**Executed 2026-10-17:** PostgreSQL 15 and MariaDB 10.11, packet MT off/on,
+each run three independent roles in the private loopback-only packet namespace.
+The administrative writer is verified packetless. Consumers deny set/delete
+while retaining reads; full SQL snapshots and active state remain unchanged.
+Graceful supervised writer exit fences the old process before reconciliation
+and replacement. Failed fencing and missing reconciliation prevent candidate
+startup. Both consumers pass staged activation, partial-failure hold/recovery
+and six DORA/lease checks per scenario (24 total).
+
+See [deployment](designated-writer-deployment.md),
+[fencing](writer-fencing-runbook.md) and
+[fleet activation](fleet-activation-runbook.md). Implementation is isolated to
+test/deployment tooling; production hook behavior is unchanged from M20.
+The existing six-test Release C++14 gate passes with no skips and deliberate
+outages excluded; 31 unit tests, artifact checks, clangd diagnostics and quality
+checks pass. Evidence: `build/milestone21/checks.md`.
+
+This proves fencing only under the trusted local supervisor with no retired
+writer restart. Container/remote fencing, partitions, arbitrary external writers,
+durable operational holds and uncertain native transaction recovery are
+unqualified. This is not production readiness or Kea HA qualification.
+
+The original milestone scope is retained below:
 
 - **Objective:** demonstrate a non-serving writer and consumers with enforced
   mutation boundaries, including a controlled ownership handover.

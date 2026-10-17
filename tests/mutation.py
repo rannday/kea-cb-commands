@@ -4,7 +4,7 @@
 import ipaddress
 import time
 
-from smoke import require_success
+from smoke import ADMISSION_ERROR, require_success, verify_denied
 
 
 def request(subnet_id=900, prefix="198.18.0.0/24", lifetime=600, tag="test-server",
@@ -14,6 +14,41 @@ def request(subnet_id=900, prefix="198.18.0.0/24", lifetime=600, tag="test-serve
     if pools is not None:
         arguments["subnet4"]["pools"] = pools
     return arguments
+
+
+def configure_admission(send, config, save, parameters):
+    """Reload only this hook's admission parameters; preserve native SQL hooks."""
+    hooks = [hook for hook in config["Dhcp4"]["hooks-libraries"]
+             if hook["library"].endswith("/libdhcp_db_commands.so")]
+    assert len(hooks) == 1
+    hook = hooks[0]
+    hook.pop("parameters", None)
+    if parameters is not None:
+        hook["parameters"] = parameters
+    save()
+    require_success(send("config-reload"))
+
+
+def verify_admission(send, snapshot, config, save):
+    """Default/explicit consumers cannot mutate tables, audit or active state."""
+    for parameters in (None, {}, {"allow-mutations": False}):
+        configure_admission(send, config, save, parameters)
+        before = snapshot()
+        active = require_success(send("config-get"))
+        listed = require_success(send("cb-subnet4-list"))
+        require_success(send("cb-subnet4-get", {"id": 42}))
+        verify_denied(send)
+        for arguments in (request(), request(subnet_id=42, prefix="192.0.2.0/24", tag="all")):
+            assert send("cb-subnet4-set", arguments) == ADMISSION_ERROR
+        assert send("cb-subnet4-del", {
+            "id": 42, "server-tag": "all", "preserve-leases": True}) == ADMISSION_ERROR
+        assert snapshot() == before, "Admission rejection changed SQL tables/audit"
+        assert require_success(send("config-get")) == active, "Rejection activated configuration"
+        assert require_success(send("cb-subnet4-list")) == listed
+        print(f"PASS: admission {parameters!r}: create/update/delete denied; "
+              "SQL tables/audit and active state unchanged; list/get available")
+    configure_admission(send, config, save, {"allow-mutations": True})
+    assert require_success(send("db-commands-diagnostic"))["allow-mutations"] is True
 
 
 def verify_mutations(send, snapshot, sql, config, save, deny_association, restore_privileges):
@@ -60,6 +95,7 @@ def verify_mutations(send, snapshot, sql, config, save, deny_association, restor
     config["Dhcp4"]["server-tag"] = "test-server"
     save()
     require_success(send("config-reload"))
+    verify_admission(send, snapshot, config, save)
     original = stored()
     # All supplied fields are checked, including explicitly empty unsupported ones.
     for arguments in (None, {}, [], False, "bad", {"server-tag": "all"}):

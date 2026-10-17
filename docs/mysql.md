@@ -25,7 +25,8 @@ paths and connection values for your installation:
 ```json
 "hooks-libraries": [
   {"library": "/absolute/kea/lib/kea/hooks/libdhcp_mysql.so"},
-  {"library": "/absolute/kea/lib/kea/hooks/libdhcp_db_commands.so"}
+  {"library": "/absolute/kea/lib/kea/hooks/libdhcp_db_commands.so",
+   "parameters": {"allow-mutations": true}}
 ],
 "config-control": {
   "config-fetch-wait-time": 0,

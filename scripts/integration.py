@@ -102,6 +102,8 @@ def main():
                         help="GCC ASan+UBSan hook build; requires a separate --build-dir")
     parser.add_argument("--multiprocess", action="store_true",
                         help="extend SQL tests with independent Kea processes")
+    parser.add_argument("--skip-outages", action="store_true",
+                        help="exclude deliberate SQL stop/recovery in all SQL/packet tests")
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error("--jobs must be positive")
@@ -154,6 +156,7 @@ def main():
         f"-DCMAKE_BUILD_TYPE={'RelWithDebInfo' if args.sanitizers else 'Release'}",
         "-DBUILD_TESTING=ON", "-DCMAKE_INSTALL_LIBDIR=lib",
         "-DKEA_DB_COMMANDS_WARNINGS_AS_ERRORS=ON",
+        f"-DKEA_DB_COMMANDS_SKIP_OUTAGES={'ON' if args.skip_outages else 'OFF'}",
         f"-DKEA_DB_COMMANDS_MULTIPROCESS_TESTS={'ON' if args.multiprocess else 'OFF'}",
         f"-DKEA_DB_COMMANDS_SANITIZERS={'ON' if args.sanitizers else 'OFF'}",
     ]

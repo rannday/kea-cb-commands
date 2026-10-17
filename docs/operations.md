@@ -43,6 +43,14 @@ subnet ID or prefix reuse until lease handling is resolved.
 
 ## Security and writer ownership
 
+Current development builds deny set/delete unless the designated writer's hook
+entry has `"parameters": {"allow-mutations": true}`. Consumers use false or
+omit the parameter; diagnostic/list/get remain available. Invalid types and
+unknown parameter names fail load. See [migration and role examples](mutation-admission.md).
+This is a breaking default change from v0.1.0 and is pending SQL/DHCP acceptance.
+Protect native reload/configuration access because it can replace admission
+parameters. No ordinary hook command changes the role.
+
 Treat access to Kea's control channel as configuration-administrator access.
 This hook adds no authentication or per-command/per-tag authorization. A caller
 can explicitly select another tag in get/set/delete; tags are selection and
@@ -70,6 +78,7 @@ There is no cross-process concurrency guarantee or performance/scale certificati
 | --- | --- |
 | Module fails to load or has undefined symbols | Check exact daemon/hook ABI, required exports, dependency resolution and allowed hook directory. Use the artifact verifier against the deployed Kea prefix. |
 | Command is unsupported | Check that this hook loaded and appears in the effective configuration; inspect native startup logs. |
+| Mutations are disabled | Verify designated writer ownership and effective diagnostic `allow-mutations`; enable true only on the externally fenced owner. Consumers should continue rejecting. |
 | Diagnostic succeeds but list fails | Check `config-control`, the upstream SQL hook, schema, credentials and database reachability. Diagnostic does not open a database connection. |
 | Multiple-backend or tag error | Configure exactly one backend; check the command's exact tag and association rules. `all` is the universal association, not every server's objects. |
 | Rich-object or shared-network rejection | Use a management path that preserves those attributes. This hook supports only its documented standalone subnet contract. |

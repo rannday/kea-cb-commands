@@ -16,6 +16,7 @@ static_assert(KEA_HOOKS_VERSION == 30201 || KEA_HOOKS_VERSION == 30004,
               "Build against a source-assessed Kea release");
 
 namespace {
+bool allow_mutations = false;
 isc::log::Logger logger("db-commands");
 const char* messages[] = {"DB_COMMANDS_LOADED",
                           "configuration backend commands registered",
@@ -27,6 +28,12 @@ const char* messages[] = {"DB_COMMANDS_LOADED",
 isc::log::MessageInitializer message_initializer(messages);
 
 } // namespace
+
+namespace kea_db_commands {
+bool mutationsAllowed() {
+    return allow_mutations;
+}
+} // namespace kea_db_commands
 
 #define DB_COMMANDS_EXPORT extern "C" __attribute__((visibility("default")))
 
@@ -40,10 +47,26 @@ DB_COMMANDS_EXPORT int multi_threading_compatible() {
 
 DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
     using namespace kea_db_commands;
+    allow_mutations = false;
     try {
         if (isc::dhcp::CfgMgr::instance().getFamily() != AF_INET ||
             isc::process::Daemon::getProcName() != "kea-dhcp4") {
             return 1;
+        }
+        bool requested = false;
+        const auto parameters = handle.getParameters();
+        if (parameters) {
+            if (parameters->getType() != isc::data::Element::map) {
+                return 1;
+            }
+            for (const auto& parameter : parameters->mapValue()) {
+                if (parameter.first != "allow-mutations" ||
+                    parameter.second->getType() != isc::data::Element::boolean) {
+                    LOG_ERROR(logger, "DB_COMMANDS_LOAD_FAILED");
+                    return 1;
+                }
+                requested = parameter.second->boolValue();
+            }
         }
         handle.registerCommandCallout("db-commands-diagnostic", diagnostic);
         handle.registerCommandCallout("cb-subnet4-list", subnet4List);
@@ -51,6 +74,7 @@ DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
         handle.registerCommandCallout("cb-subnet4-del", subnet4Del);
         handle.registerCommandCallout("cb-subnet4-set", subnet4Set);
         LOG_INFO(logger, "DB_COMMANDS_LOADED");
+        allow_mutations = requested;
         return 0;
     } catch (...) {
         try {
@@ -62,6 +86,7 @@ DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
 }
 
 DB_COMMANDS_EXPORT int unload() {
+    allow_mutations = false;
     try {
         LOG_INFO(logger, "DB_COMMANDS_UNLOADED");
         // Kea removes registered callouts during library teardown.

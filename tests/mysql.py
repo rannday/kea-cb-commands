@@ -14,7 +14,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from mutation import request, verify_mutations
+from mutation import configure_admission, request, verify_mutations
 from lifecycle import verify_lifecycle
 from concurrency import verify_multiprocess
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
@@ -192,6 +192,15 @@ def run_case(args, directory, multithreading):
                                    KEA_HOOKS_PATH=str(hook_directory))
                 if args.packet:
                     environment["KEA_LFC_EXECUTABLE"] = str(args.lfc.resolve())
+                if args.designated_writer:
+                    from designated_writer import verify_designated_writer
+
+                    sql("CREATE USER 'kea_writer'@'localhost'; "
+                        "GRANT SELECT,INSERT,UPDATE,DELETE,EXECUTE ON kea_test.* "
+                        "TO 'kea_writer'@'localhost'")
+                    verify_designated_writer(args, directory, config, environment,
+                                             authorization, snapshot)
+                    return
                 if not args.select_only:
                     # Record which native prepared statements require each grant.
                     # Inspect output privately; never echo account names or SQL.
@@ -324,6 +333,7 @@ def run_case(args, directory, multithreading):
                         "INSERT INTO dhcp4_subnet_server VALUES (42,1,NOW()),(45,1,NOW()); COMMIT")
                     before = snapshot()
 
+                    configure_admission(send, config, save, {"allow-mutations": True})
                     # Two official-schema databases, including overlapping subnet IDs.
                     sql("CREATE DATABASE kea_other", database="mysql")
                     sql(file=args.schema, database="kea_other")
@@ -361,66 +371,71 @@ def run_case(args, directory, multithreading):
                     require_success(send("config-reload"))
                     verify_complex(require_success(send("cb-subnet4-list")), {42, 45}, "missing-server")
 
-                    unavailable = {"result": 1, "text": "Configuration backend read failed or unavailable."}
-                    active_before_outage = require_success(send("config-get"))
-                    stop(database_process)
-                    assert database_process.returncode == 0, "MySQL shutdown failed"
-                    assert send("config-backend-pull")["result"] != 0
-                    assert send("cb-subnet4-get", {"id": 42}) == unavailable
-                    assert send("cb-subnet4-del", {
-                        "id": 42, "server-tag": "all", "preserve-leases": True}) == {
-                            "result": 1, "text": (
-                                "Configuration backend deletion failed or unavailable; "
-                                "reconcile backend state before retrying.")}
-                    assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
-                        "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}}) == {
-                            "result": 1, "text": (
-                                "Configuration backend write failed or unavailable; "
-                                "reconcile backend state before retrying.")}
-                    assert require_success(send("db-commands-diagnostic"))[
-                        "database-connectivity-tested"] is False
-                    # Reconnect removes the broken backend; later pulls can
-                    # report success without applying any configuration.
-                    require_success(send("config-backend-pull"))
-                    assert require_success(send("config-get")) == active_before_outage
-                    assert send("cb-subnet4-list") == unavailable
-                    deadline = time.monotonic() + 2
-                    while time.monotonic() < deadline:
+                    if not args.skip_outages:
+                        unavailable = {
+                            "result": 1, "text": "Configuration backend read failed or unavailable."}
+                        active_before_outage = require_success(send("config-get"))
+                        stop(database_process)
+                        assert database_process.returncode == 0, "MySQL shutdown failed"
+                        assert send("config-backend-pull")["result"] != 0
+                        assert send("cb-subnet4-get", {"id": 42}) == unavailable
+                        assert send("cb-subnet4-del", {
+                            "id": 42, "server-tag": "all", "preserve-leases": True}) == {
+                                "result": 1, "text": (
+                                    "Configuration backend deletion failed or unavailable; "
+                                    "reconcile backend state before retrying.")}
+                        assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
+                            "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}}) == {
+                                "result": 1, "text": (
+                                    "Configuration backend write failed or unavailable; "
+                                    "reconcile backend state before retrying.")}
+                        assert require_success(send("db-commands-diagnostic"))[
+                            "database-connectivity-tested"] is False
+                        # Reconnect removes the broken backend; later pulls can
+                        # report success without applying any configuration.
+                        require_success(send("config-backend-pull"))
+                        assert require_success(send("config-get")) == active_before_outage
                         assert send("cb-subnet4-list") == unavailable
-                        time.sleep(0.1)
-                    database_process = start_database()
-                    deadline = time.monotonic() + 15
-                    while True:
-                        response = send("cb-subnet4-list")
-                        if response["result"] == 0:
-                            verify_complex(response["arguments"], {42, 45}, "missing-server")
-                            break
-                        assert response == unavailable
-                        assert time.monotonic() < deadline, "Native MySQL recovery timed out"
-                        time.sleep(0.1)
-                    assert snapshot() == before
+                        deadline = time.monotonic() + 2
+                        while time.monotonic() < deadline:
+                            assert send("cb-subnet4-list") == unavailable
+                            time.sleep(0.1)
+                        database_process = start_database()
+                        deadline = time.monotonic() + 15
+                        while True:
+                            response = send("cb-subnet4-list")
+                            if response["result"] == 0:
+                                verify_complex(response["arguments"], {42, 45}, "missing-server")
+                                break
+                            assert response == unavailable
+                            assert time.monotonic() < deadline, "Native MySQL recovery timed out"
+                            time.sleep(0.1)
+                        assert snapshot() == before
 
-                    # After exhaustion serve-retry-continue stays alive without a backend.
-                    databases[0]["max-reconnect-tries"] = 2
-                    save()
-                    require_success(send("config-reload"))
-                    stop(database_process)
-                    assert database_process.returncode == 0
-                    assert send("cb-subnet4-list") == unavailable
-                    deadline = time.monotonic() + 8
-                    while b"MYSQL_CB_RECONNECT_FAILED4" not in (directory / "kea.log").read_bytes():
-                        assert kea_process.poll() is None, "serve-retry-continue unexpectedly exited"
+                        # After exhaustion serve-retry-continue stays alive without a backend.
+                        databases[0]["max-reconnect-tries"] = 2
+                        save()
+                        require_success(send("config-reload"))
+                        stop(database_process)
+                        assert database_process.returncode == 0
                         assert send("cb-subnet4-list") == unavailable
-                        assert time.monotonic() < deadline, "Native retry exhaustion was not logged"
-                        time.sleep(0.1)
-                    database_process = start_database()
-                    deadline = time.monotonic() + 2
-                    while time.monotonic() < deadline:
-                        assert send("cb-subnet4-list") == unavailable
-                        time.sleep(0.1)
-                    require_success(send("config-reload"))
-                    verify_complex(require_success(send("cb-subnet4-list")), {42, 45}, "missing-server")
-                    assert snapshot() == before
+                        deadline = time.monotonic() + 8
+                        while b"MYSQL_CB_RECONNECT_FAILED4" not in (directory / "kea.log").read_bytes():
+                            assert kea_process.poll() is None, "serve-retry-continue unexpectedly exited"
+                            assert send("cb-subnet4-list") == unavailable
+                            assert time.monotonic() < deadline, "Native retry exhaustion was not logged"
+                            time.sleep(0.1)
+                        database_process = start_database()
+                        deadline = time.monotonic() + 2
+                        while time.monotonic() < deadline:
+                            assert send("cb-subnet4-list") == unavailable
+                            time.sleep(0.1)
+                        require_success(send("config-reload"))
+                        verify_complex(require_success(send("cb-subnet4-list")),
+                                       {42, 45}, "missing-server")
+                        assert snapshot() == before
+                    else:
+                        print("EXCLUDED: deliberate SQL outage/retry exhaustion (--skip-outages)")
                     # The read account can initialize but cannot call the native
                     # audit procedure. Verify failure before granting EXECUTE.
                     before_write = snapshot()
@@ -484,7 +499,7 @@ def run_case(args, directory, multithreading):
                       f"MT={multithreading}: empty, complex native reads, pools/options/classes, tags, "
                       f"invalid arguments, select-only={args.select_only}, "
                       "nonmutating reads, native mutations and rollback, ambiguous backends, "
-                      "recovery, retry exhaustion, shutdown")
+                      f"outage/retry-exhaustion coverage={not args.skip_outages}, shutdown")
         finally:
             stop(kea_process)
             stop(database_process)
@@ -499,12 +514,18 @@ def main():
         "--select-only", action="store_true",
         help="probe native SELECT-only startup; preparation failures remain test failures",
     )
+    parser.add_argument("--skip-outages", action="store_true",
+                        help="exclude deliberate SQL stop/recovery scenarios")
     parser.add_argument("--multiprocess", action="store_true",
                         help="run bounded independent-process concurrency checks")
     parser.add_argument("--packet", action="store_true",
                         help="run DORA inside the packet namespace runner")
     parser.add_argument("--lfc", type=Path, help="matching Kea lease-file cleanup executable")
+    parser.add_argument("--designated-writer", action="store_true",
+                        help="qualify isolated three-role deployment without SQL faults")
     args = parser.parse_args()
+    if args.designated_writer and (not args.packet or args.multiprocess or args.select_only):
+        parser.error("--designated-writer requires --packet and excludes other probe modes")
     if args.packet:
         _isolated()
         if args.lfc is None or not args.lfc.is_file() or not os.access(args.lfc, os.X_OK):

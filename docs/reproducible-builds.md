@@ -115,10 +115,18 @@ Missing, failed, duplicate or skipped tests fail the gate. Optional CMake tests
 still support skip code 77 for smoke-only development; a green partial CTest run
 does not establish full integration success.
 
+For acceptance that excludes deliberate SQL connection interruption, add
+`--skip-outages` to `scripts/integration.py`. This sets
+`KEA_DB_COMMANDS_SKIP_OUTAGES=ON` and forwards the exclusion to all four SQL and
+DHCP tests. They print the excluded outage/recovery sections explicitly; the
+strict gate still requires all six tests, including both threading modes,
+admission, CRUD and packet assertions. Default runs retain the outage sections.
+Milestone 20.1 uses this exclusion and makes no outage/recovery coverage claim.
+
 The six tests cover transport, real hook lifecycle, PostgreSQL mutations/reads,
 PostgreSQL DHCP, MariaDB mutations/reads and MariaDB DHCP. Both threading modes,
 pool replacement/omission/removal, rejected-mutation snapshots, late transaction
-failures, audit/timestamps, activation failures, reload/restart and twelve real
+failures, audit/timestamps, activation failures, reload/restart and sixteen real
 DORA exchanges are exercised. The two packet tests verify recorded leases.
 See [pool evidence](pools.md) and [mutation semantics](commands.md).
 

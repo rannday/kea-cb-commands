@@ -1,4 +1,31 @@
-# Production readiness review — Milestone 19
+# Production readiness review — Milestone 19 with M21 addendum
+
+**Milestone 21 addendum (2026-10-17):** the controlled same-host
+[designated-writer deployment](designated-writer-deployment.md) passes on
+PostgreSQL/MariaDB with packet threading off/on. Three independent roles,
+packetless administration, consumer denial with SQL/runtime preservation,
+graceful process fencing, gated replacement/reconciliation, staged activation,
+partial-failure write hold and both consumers' DORA/leases are verified.
+Existing six-test regressions and quality checks pass; deliberate SQL outages
+are excluded. See `build/milestone21/checks.md`.
+
+R1 is controlled only within the trusted local supervisor/no-restart boundary;
+R4 and R9 now have focused non-faulting deployment evidence. SQL credentials
+remain usable by other processes; remote/container fencing, durable holds and
+external writer exclusion require deployment-specific qualification. R2's
+native SQL failure risk and R3's arbitrary uncertain-outcome/exact-association
+recovery remain open. No production approval or HA qualification follows.
+M22 should provide separately approved native read-only reconciliation evidence.
+
+The M19 review and M20/M20.1 addenda below retain their historical scope.
+
+Milestone 20 addendum: local default-deny admission is now implemented in the
+development worktree and lifecycle-tested in both packet-threading modes.
+Milestone 20.1 SQL/DHCP acceptance now passes for both backends and threading
+modes, excluding deliberate SQL interruptions; see the [roadmap](development-roadmap.md).
+This addressed R5's missing local role only. At that milestone, R1 cross-process
+fencing, native SQL failure risk, reconciliation and activation remained open. The
+Milestone 19 baseline and findings below are retained as historical evidence.
 
 ## Decision and evidence boundary
 

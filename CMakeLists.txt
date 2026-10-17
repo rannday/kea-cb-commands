@@ -121,7 +121,13 @@ if(BUILD_TESTING)
         set_tests_properties(hook_lifecycle PROPERTIES TIMEOUT 90
             ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
     endif()
+    option(KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS "Run isolated three-role writer qualification" OFF)
     option(KEA_DB_COMMANDS_MULTIPROCESS_TESTS "Extend SQL tests with independent Kea processes" OFF)
+    option(KEA_DB_COMMANDS_SKIP_OUTAGES "Exclude deliberate SQL stop/recovery scenarios" OFF)
+    set(KEA_SQL_ARGUMENTS "")
+    if(KEA_DB_COMMANDS_SKIP_OUTAGES)
+        list(APPEND KEA_SQL_ARGUMENTS --skip-outages)
+    endif()
     set(KEA_MULTIPROCESS_ARGUMENTS "")
     if(KEA_DB_COMMANDS_MULTIPROCESS_TESTS)
         list(APPEND KEA_MULTIPROCESS_ARGUMENTS --multiprocess)
@@ -143,7 +149,8 @@ if(BUILD_TESTING)
                 --pgsql-hook "${KEA_POSTGRESQL_HOOK}"
                 --schema "${KEA_POSTGRESQL_SCHEMA}"
                 --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
-                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql ${KEA_MULTIPROCESS_ARGUMENTS})
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql
+                ${KEA_MULTIPROCESS_ARGUMENTS} ${KEA_SQL_ARGUMENTS})
         set_tests_properties(postgresql_read PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77
             LABELS PostgreSQL)
         # Staging upstream's hook changes its relative $ORIGIN search paths.
@@ -161,10 +168,25 @@ if(BUILD_TESTING)
                     --pgsql-hook "${KEA_POSTGRESQL_HOOK}"
                     --schema "${KEA_POSTGRESQL_SCHEMA}"
                     --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
-                    --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql-dhcp)
+                    --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql-dhcp ${KEA_SQL_ARGUMENTS})
             set_tests_properties(postgresql_dhcp PROPERTIES TIMEOUT 240 SKIP_RETURN_CODE 77
                 LABELS "PostgreSQL;DHCP"
                 ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+            if(KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS)
+                add_test(NAME postgresql_designated_writer
+                    COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/packet_namespace.py
+                        ${CMAKE_CURRENT_SOURCE_DIR}/tests/postgresql.py --packet --designated-writer
+                        --lfc "${KEA_LFC_EXECUTABLE}"
+                        --server "${KEA_DHCP4_EXECUTABLE}"
+                        --hook $<TARGET_FILE:kea_db_commands>
+                        --pgsql-hook "${KEA_POSTGRESQL_HOOK}"
+                        --schema "${KEA_POSTGRESQL_SCHEMA}"
+                        --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
+                        --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql-designated-writer ${KEA_SQL_ARGUMENTS})
+                set_tests_properties(postgresql_designated_writer PROPERTIES TIMEOUT 240 SKIP_RETURN_CODE 77
+                    LABELS "PostgreSQL;DHCP"
+                    ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+            endif()
         endif()
     endif()
     option(KEA_DB_COMMANDS_MYSQL_TESTS "Run isolated real MySQL/MariaDB integration" OFF)
@@ -184,7 +206,8 @@ if(BUILD_TESTING)
                 --mysql-bin "${KEA_MYSQL_CLIENT}"
                 --mysql-install-db "${KEA_MYSQL_INSTALL_DB}"
                 --mysql-server "${KEA_MYSQL_SERVER}"
-                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql ${KEA_MULTIPROCESS_ARGUMENTS})
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql
+                ${KEA_MULTIPROCESS_ARGUMENTS} ${KEA_SQL_ARGUMENTS})
         set_tests_properties(mysql_read PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77
             LABELS MySQL)
         string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
@@ -202,11 +225,33 @@ if(BUILD_TESTING)
                     --mysql-bin "${KEA_MYSQL_CLIENT}"
                     --mysql-install-db "${KEA_MYSQL_INSTALL_DB}"
                     --mysql-server "${KEA_MYSQL_SERVER}"
-                    --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql-dhcp)
+                    --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql-dhcp ${KEA_SQL_ARGUMENTS})
             set_tests_properties(mysql_dhcp PROPERTIES TIMEOUT 240 SKIP_RETURN_CODE 77
                 LABELS "MySQL;DHCP"
                 ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+            if(KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS)
+                add_test(NAME mysql_designated_writer
+                    COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/packet_namespace.py
+                        ${CMAKE_CURRENT_SOURCE_DIR}/tests/mysql.py --packet --designated-writer
+                        --lfc "${KEA_LFC_EXECUTABLE}"
+                        --server "${KEA_DHCP4_EXECUTABLE}"
+                        --hook $<TARGET_FILE:kea_db_commands>
+                        --mysql-hook "${KEA_MYSQL_HOOK}"
+                        --schema "${KEA_MYSQL_SCHEMA}"
+                        --mysql-bin "${KEA_MYSQL_CLIENT}"
+                        --mysql-install-db "${KEA_MYSQL_INSTALL_DB}"
+                        --mysql-server "${KEA_MYSQL_SERVER}"
+                        --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql-designated-writer ${KEA_SQL_ARGUMENTS})
+                set_tests_properties(mysql_designated_writer PROPERTIES TIMEOUT 240 SKIP_RETURN_CODE 77
+                    LABELS "MySQL;DHCP"
+                    ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+            endif()
         endif()
+    endif()
+    if(KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS AND
+       NOT (KEA_DB_COMMANDS_POSTGRESQL_TESTS AND KEA_DB_COMMANDS_MYSQL_TESTS AND
+            KEA_DB_COMMANDS_DHCP_TESTS))
+        message(FATAL_ERROR "Designated-writer qualification requires PostgreSQL, MySQL and DHCP tests")
     endif()
     if(KEA_DB_COMMANDS_MULTIPROCESS_TESTS)
         foreach(sql_test postgresql_read mysql_read)

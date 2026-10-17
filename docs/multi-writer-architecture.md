@@ -5,8 +5,11 @@
 Use **one designated administrative Kea DHCPv4 process per physical configuration
 database**, with enforced ingress and deployment fencing. Prefer a process that
 serves no DHCP packets. Serving instances consume configuration and omit this
-hook unless they need its read commands. An explicit mutation-disabled role is
-the [next proposed implementation](development-roadmap.md), not a current feature.
+hook unless they need its read commands. Current development code implements
+default-deny local admission with `allow-mutations`; Milestone 20.1 qualified
+SQL/DHCP admission on both backends and threading modes. See
+[migration](mutation-admission.md), the [roadmap](development-roadmap.md), and the
+[controlled deployment](designated-writer-deployment.md).
 
 This is static ownership with controlled manual handover, not distributed leader
 election. All clients submit mutations to that process, whose synchronous main
@@ -57,8 +60,9 @@ catching an error or retaining a local mutex. No lock implementation is proposed
    client requests in flight at the workflow layer even though native commands
    execute serially.
 3. Omit this hook on consumers that do not need it. For consumers needing reads,
-   propose explicit mutation admission disabled at load. The current hook has no
-   such switch. A disabled role must reject before native access.
+   omit `allow-mutations` or set false; set/delete reject before native access.
+   Explicit true is reserved for the designated externally fenced owner. This
+   guard cannot stop another instance configured true or any bypass writer.
 4. Restrict SQL privileges where compatible, but do not claim uniform read-only
    grants: MariaDB prepares write statements even for tested read operations.
    Revoking writes is not yet a qualified consumer configuration. A role switch

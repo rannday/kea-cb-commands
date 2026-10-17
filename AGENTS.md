@@ -40,6 +40,10 @@ compatibility are outside the implemented interface.
 
 ## Behavioral invariants
 
+- Default-deny set/delete admission via the native boolean hook parameter
+  `allow-mutations`. Validate strictly at load; reset before load/unload. Admission
+  is local, not cross-process fencing. See [migration](docs/mutation-admission.md).
+
 - Resolve `ConfigBackendDHCPv4Mgr::instance().getPool()` per invocation;
   retain no backend state across reloads and create no private manager.
 - Use native Kea configuration backend APIs, shared core libraries and upstream

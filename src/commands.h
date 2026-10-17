@@ -10,6 +10,9 @@ class CalloutHandle;
 
 namespace kea_db_commands {
 
+// Immutable between Kea lifecycle callbacks; commands run on the main thread.
+bool mutationsAllowed();
+
 // Synchronous Kea command callouts. Each contains exceptions at the hook boundary.
 int diagnostic(isc::hooks::CalloutHandle& handle);
 int subnet4List(isc::hooks::CalloutHandle& handle);

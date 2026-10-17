@@ -1,5 +1,42 @@
 # DHCPv4 subnet lifecycle commands
 
+## Mutation admission (current development version)
+
+`cb-subnet4-set` and `cb-subnet4-del` require the hook-library parameter
+`"allow-mutations": true`. Omission, an empty parameters map or explicit false
+denies both commands before argument validation or any backend access. Commands
+remain registered. Denial returns exactly:
+
+```json
+{
+  "result": 1,
+  "text": "Mutations are disabled; configure allow-mutations: true on the designated administrative writer."
+}
+```
+
+This rejection makes no SQL mutation, audit change or activation request.
+Diagnostic/list/get remain available subject to their normal backend contracts.
+For an admitted writer, validation, generic native failures, transactions and
+persistence/activation behavior below remain unchanged.
+
+Use Kea's native `hooks-libraries` entry with a `parameters` map. Only the
+`allow-mutations` key and native boolean values are accepted. Unknown keys,
+strings, numbers, null, lists and maps as its value fail initialization;
+non-map parameters also fail. Admission resets to false before load and before
+unload; it becomes true only after successful initialization. Kea owns command
+deregistration, including failed-load cleanup. Main-thread command/lifecycle
+serialization requires no new synchronization.
+
+`db-commands-diagnostic` reports `allow-mutations` separately from the unchanged
+`mutations-supported` capability flag. Admission cannot be switched through a
+hook command. A privileged native configuration reload can change parameters;
+protect that control channel and configuration ownership.
+
+This is a breaking default change from published v0.1.0. It is not cross-process
+fencing or database authorization; external writers can bypass it. See
+[migration guidance](mutation-admission.md) and the
+[qualification status](development-roadmap.md).
+
 ## Retrieve one subnet: `cb-subnet4-get`
 
 ```json

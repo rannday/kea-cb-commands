@@ -13,6 +13,15 @@
 
 namespace kea_db_commands {
 
+namespace {
+void requireMutationAdmission() {
+    if (!mutationsAllowed()) {
+        throw ContractError("Mutations are disabled; configure allow-mutations: true on the "
+                            "designated administrative writer.");
+    }
+}
+} // namespace
+
 int diagnostic(isc::hooks::CalloutHandle& handle) {
     using namespace isc::data;
     using namespace isc::config;
@@ -38,6 +47,7 @@ int diagnostic(isc::hooks::CalloutHandle& handle) {
                 result->set("kea-hooks-version", Element::create(KEA_HOOKS_VERSION));
                 result->set("database-connectivity-tested", Element::create(false));
                 result->set("mutations-supported", Element::create(true));
+                result->set("allow-mutations", Element::create(mutationsAllowed()));
                 response = createAnswer(CONTROL_RESULT_SUCCESS,
                                         "Configuration backend API is accessible.", result);
             }
@@ -100,6 +110,9 @@ int subnet4Lookup(isc::hooks::CalloutHandle& handle, const bool remove) {
     try {
         ConstElementPtr response;
         try {
+            if (remove) {
+                requireMutationAdmission();
+            }
             ConstElementPtr command;
             handle.getArgument("command", command);
             const auto result =
@@ -143,6 +156,7 @@ int subnet4Set(isc::hooks::CalloutHandle& handle) {
     try {
         ConstElementPtr response;
         try {
+            requireMutationAdmission();
             ConstElementPtr command;
             handle.getArgument("command", command);
             const auto result = setSubnet(command ? command->get("arguments") : ConstElementPtr());

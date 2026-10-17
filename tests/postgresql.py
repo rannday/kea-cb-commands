@@ -14,7 +14,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from mutation import verify_mutations
+from mutation import configure_admission, verify_mutations
 from lifecycle import verify_lifecycle
 from concurrency import verify_multiprocess
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
@@ -179,6 +179,18 @@ def run_case(args, directory, multithreading):
                                KEA_HOOKS_PATH=str(hook_directory))
             if args.packet:
                 environment["KEA_LFC_EXECUTABLE"] = str(args.lfc.resolve())
+            if args.designated_writer:
+                from designated_writer import verify_designated_writer
+
+                sql("CREATE ROLE kea_writer LOGIN; "
+                    "GRANT CONNECT ON DATABASE kea_test TO kea_writer; "
+                    "GRANT USAGE ON SCHEMA public TO kea_writer; "
+                    "GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO kea_writer; "
+                    "GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO kea_writer")
+                config["Dhcp4"]["config-control"]["config-databases"][0]["user"] = "kea_writer"
+                verify_designated_writer(args, directory, config, environment,
+                                         authorization, snapshot)
+                return
             with (directory / "kea.log").open("w", encoding="utf-8") as log:
                 execute([args.server, "-T", config_path], env=environment, cwd=directory)
                 process = subprocess.Popen(
@@ -243,6 +255,7 @@ def run_case(args, directory, multithreading):
                     "INSERT INTO dhcp4_subnet_server(subnet_id, server_id) "
                     "VALUES (42, 1), (45, 1); COMMIT")
 
+                configure_admission(send, config, save, {"allow-mutations": True})
                 # No native name/index selector exists to distinguish these
                 # two databases on one host. Even disjoint data must fail closed.
                 sql("CREATE DATABASE kea_second", database="postgres")
@@ -309,58 +322,61 @@ def run_case(args, directory, multithreading):
                     "'restore fixture', false); "
                     "UPDATE dhcp4_subnet SET shared_network_name=NULL WHERE subnet_id=42; COMMIT")
 
-                active_before_outage = require_success(send("config-get"))
-                execute([pg / "pg_ctl", "-D", data, "-m", "fast", "-w", "stop"],
-                        env=pg_environment)
-                pg_started = False
-                assert send("config-backend-pull")["result"] != 0
-                assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
-                    "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}}) == {
-                        "result": 1, "text": (
-                            "Configuration backend write failed or unavailable; "
-                            "reconcile backend state before retrying.")}
-                assert require_success(send("db-commands-diagnostic"))[
-                    "database-connectivity-tested"] is False
-                # Native reconnect removes the broken backend: a subsequent
-                # pull can succeed as a no-op. Check runtime, not status alone.
-                require_success(send("config-backend-pull"))
-                assert require_success(send("config-get")) == active_before_outage
-                response = send("cb-subnet4-list")
-                assert response == {
-                    "result": 1,
-                    "text": "Configuration backend read failed or unavailable.",
-                }, "Backend failure response changed or exposed details"
-                assert send("cb-subnet4-get", {"id": 42}) == response
-                failed_delete = send("cb-subnet4-del", {
-                    "id": 42, "server-tag": "all", "preserve-leases": True})
-                assert failed_delete == {"result": 1, "text": (
-                    "Configuration backend deletion failed or unavailable; "
-                    "reconcile backend state before retrying.")}
-                # Allow native retry callbacks to remove the unusable backend;
-                # reads must remain errors rather than successful empty lists.
-                unavailable_until = time.monotonic() + 2
-                while time.monotonic() < unavailable_until:
-                    assert send("cb-subnet4-list") == response
-                    time.sleep(0.2)
-                # Restart only the private cluster. Kea's own posted recovery
-                # callback replaces the connection; no config reload or hook retry.
-                pg_started = True
-                execute([pg / "pg_ctl", "-D", data, "-l", directory / "postgres.log",
-                         "-o", f"-k {socket_directory} -h '' -p 5432", "-t", "15",
-                         "-w", "start"], env=pg_environment)
-                deadline = time.monotonic() + 15
-                while True:
-                    recovered = send("cb-subnet4-list")
-                    if recovered["result"] == 0:
-                        verify_complex(require_success(recovered), {42, 45}, "missing-server")
-                        break
-                    assert recovered == response
-                    assert time.monotonic() < deadline, "Native PostgreSQL recovery timed out"
-                    time.sleep(0.2)
-                before = snapshot()
-                verify_complex(require_success(send("cb-subnet4-list")),
-                               {42, 45}, "missing-server")
-                assert before == snapshot(), "Recovered read changed database contents"
+                if not args.skip_outages:
+                    active_before_outage = require_success(send("config-get"))
+                    execute([pg / "pg_ctl", "-D", data, "-m", "fast", "-w", "stop"],
+                            env=pg_environment)
+                    pg_started = False
+                    assert send("config-backend-pull")["result"] != 0
+                    assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
+                        "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}}) == {
+                            "result": 1, "text": (
+                                "Configuration backend write failed or unavailable; "
+                                "reconcile backend state before retrying.")}
+                    assert require_success(send("db-commands-diagnostic"))[
+                        "database-connectivity-tested"] is False
+                    # Native reconnect removes the broken backend: a subsequent
+                    # pull can succeed as a no-op. Check runtime, not status alone.
+                    require_success(send("config-backend-pull"))
+                    assert require_success(send("config-get")) == active_before_outage
+                    response = send("cb-subnet4-list")
+                    assert response == {
+                        "result": 1,
+                        "text": "Configuration backend read failed or unavailable.",
+                    }, "Backend failure response changed or exposed details"
+                    assert send("cb-subnet4-get", {"id": 42}) == response
+                    failed_delete = send("cb-subnet4-del", {
+                        "id": 42, "server-tag": "all", "preserve-leases": True})
+                    assert failed_delete == {"result": 1, "text": (
+                        "Configuration backend deletion failed or unavailable; "
+                        "reconcile backend state before retrying.")}
+                    # Allow native retry callbacks to remove the unusable backend;
+                    # reads must remain errors rather than successful empty lists.
+                    unavailable_until = time.monotonic() + 2
+                    while time.monotonic() < unavailable_until:
+                        assert send("cb-subnet4-list") == response
+                        time.sleep(0.2)
+                    # Restart only the private cluster. Kea's own posted recovery
+                    # callback replaces the connection; no config reload or hook retry.
+                    pg_started = True
+                    execute([pg / "pg_ctl", "-D", data, "-l", directory / "postgres.log",
+                             "-o", f"-k {socket_directory} -h '' -p 5432", "-t", "15",
+                             "-w", "start"], env=pg_environment)
+                    deadline = time.monotonic() + 15
+                    while True:
+                        recovered = send("cb-subnet4-list")
+                        if recovered["result"] == 0:
+                            verify_complex(require_success(recovered), {42, 45}, "missing-server")
+                            break
+                        assert recovered == response
+                        assert time.monotonic() < deadline, "Native PostgreSQL recovery timed out"
+                        time.sleep(0.2)
+                    before = snapshot()
+                    verify_complex(require_success(send("cb-subnet4-list")),
+                                   {42, 45}, "missing-server")
+                    assert before == snapshot(), "Recovered read changed database contents"
+                else:
+                    print("EXCLUDED: deliberate SQL outage/recovery (--skip-outages)")
                 # Separate native mutation phase: preserve the SELECT-only read proof.
                 sql("CREATE ROLE kea_writer LOGIN; "
                     "GRANT CONNECT ON DATABASE kea_test TO kea_writer; "
@@ -417,7 +433,7 @@ def run_case(args, directory, multithreading):
             print(f"PASS: PostgreSQL schema {schema_version.decode().strip()}, "
                   f"MT={multithreading}: complex fields, tags, ambiguity, shared-network "
                   "rejection, nonmutating reads, native mutations and rollback, "
-                  "native recovery, shutdown")
+                  f"outage coverage={not args.skip_outages}, shutdown")
         finally:
             if process is not None and process.poll() is None:
                 process.terminate()
@@ -442,12 +458,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("server", "hook", "pgsql-hook", "schema", "pg-bin", "work-dir"):
         parser.add_argument(f"--{name}", required=True, type=Path)
+    parser.add_argument("--skip-outages", action="store_true",
+                        help="exclude deliberate SQL stop/recovery scenarios")
     parser.add_argument("--multiprocess", action="store_true",
                         help="run bounded independent-process concurrency checks")
     parser.add_argument("--packet", action="store_true",
                         help="run DORA inside the packet namespace runner")
     parser.add_argument("--lfc", type=Path, help="matching Kea lease-file cleanup executable")
+    parser.add_argument("--designated-writer", action="store_true",
+                        help="qualify isolated three-role deployment without SQL faults")
     args = parser.parse_args()
+    if args.designated_writer and (not args.packet or args.multiprocess):
+        parser.error("--designated-writer requires --packet and excludes --multiprocess")
     if args.packet:
         _isolated()
     dependencies = [args.server, args.hook, args.pgsql_hook, args.schema]

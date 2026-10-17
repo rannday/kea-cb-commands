@@ -81,13 +81,41 @@ configuration, using absolute paths inside Kea's permitted hook directory:
 ```json
 "hooks-libraries": [
   { "library": "/absolute/kea/lib/kea/hooks/libdhcp_pgsql.so" },
-  { "library": "/absolute/kea/lib/kea/hooks/libdhcp_db_commands.so" }
+  {
+    "library": "/absolute/kea/lib/kea/hooks/libdhcp_db_commands.so",
+    "parameters": { "allow-mutations": true }
+  }
 ]
 ```
 
 Use `libdhcp_mysql.so` for MariaDB. The native hook registers the backend;
 Kea's `config-control` settings establish the connection. This hook does not
 create a backend or read credentials. Both modules must match the daemon's ABI.
+
+The example grants local mutation admission to the **designated administrative
+writer**. Current development builds deny `cb-subnet4-set` and `cb-subnet4-del`
+by default. Configure a read-only consumer with:
+
+```json
+"parameters": { "allow-mutations": false }
+```
+
+Omitting `parameters` or `allow-mutations` also denies mutations. Only a native
+JSON boolean is accepted; strings, numbers, null and unknown parameter names
+fail hook initialization. Diagnostic/list/get remain available. Permission is
+fixed until hook reload and cannot be changed through a hook command.
+
+**Breaking upgrade change:** existing writers must explicitly configure
+`"allow-mutations": true` before adopting this development version. Published
+v0.1.0 artifacts are unchanged. Milestone 20 SQL/DHCP acceptance now passes;
+Milestone 21 qualifies a controlled same-host designated-writer deployment;
+production qualification remains separate. See the
+[roadmap](docs/development-roadmap.md) before deployment.
+
+This guard is local admission, not fencing, locking or leader election. Multiple
+enabled writers against one database are unsupported unless external enforcement
+guarantees exclusive ownership. Server tags do not isolate writers. Prefer a
+non-serving administrative writer; see [operations](docs/operations.md).
 
 Send requests through Kea's configured native control channel:
 
@@ -104,13 +132,16 @@ and these arguments:
   "configuration-backend-pool-accessible": true,
   "kea-hooks-version": 30201,
   "database-connectivity-tested": false,
-  "mutations-supported": true
+  "mutations-supported": true,
+  "allow-mutations": true
 }
 ```
 
 Diagnostic arguments may be absent or empty; other arguments return an error.
 It returns no credentials or configuration data. Success establishes access to
 the backend manager API, not a configured or reachable database.
+`mutations-supported` describes command capability; `allow-mutations` reports
+effective local admission (false on an omitted/consumer configuration).
 
 ## Operational limits
 
@@ -135,6 +166,9 @@ PostgreSQL supports the tested SELECT-only account.
 - [Exclusive-writer architecture](docs/multi-writer-architecture.md),
   [transaction recovery policy](docs/transaction-recovery-policy.md) and
   [runtime activation design](docs/runtime-activation-design.md)
+- [Designated-writer deployment](docs/designated-writer-deployment.md),
+  [writer fencing runbook](docs/writer-fencing-runbook.md) and
+  [fleet activation runbook](docs/fleet-activation-runbook.md)
 - [Command contracts and explicit activation](docs/commands.md)
 - [PostgreSQL setup and coverage](docs/postgresql.md) and [MariaDB setup and coverage](docs/mysql.md)
 - [Backend selection, tags and recovery](docs/backend-behavior.md)
