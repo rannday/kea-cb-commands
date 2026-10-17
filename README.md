@@ -130,6 +130,11 @@ PostgreSQL supports the tested SELECT-only account.
 
 ## Documentation
 
+- [Current production-readiness review](docs/production-readiness-review.md)
+  and [prioritized development roadmap](docs/development-roadmap.md)
+- [Exclusive-writer architecture](docs/multi-writer-architecture.md),
+  [transaction recovery policy](docs/transaction-recovery-policy.md) and
+  [runtime activation design](docs/runtime-activation-design.md)
 - [Command contracts and explicit activation](docs/commands.md)
 - [PostgreSQL setup and coverage](docs/postgresql.md) and [MariaDB setup and coverage](docs/mysql.md)
 - [Backend selection, tags and recovery](docs/backend-behavior.md)

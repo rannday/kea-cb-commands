@@ -199,9 +199,10 @@ workflow does not establish compatibility. See [the build guide](reproducible-bu
 11. **Release discipline.** Maintain exact-release build artifacts and regression
    gates; add packaging only after dependency and ABI constraints are demonstrated.
 
-The recommended next milestone is supported-version ABI/install verification and
-recovery/scale testing of the existing subnet and pool contract. Add another
-object family only after the existing acceptance gates pass.
-Establish an explicit deployment policy for coordinating writers before
-production writes; concurrent external writers require stronger upstream
-transaction or locking support.
+The recommendations above record the earlier development sequence. Milestone 19
+supersedes the next-step recommendation with
+[explicit mutation admission](development-roadmap.md#m20--explicit-mutation-admission-recommended-next),
+followed by enforced single-writer deployment, reconciliation and activation
+qualification. See the [current readiness review](production-readiness-review.md)
+and [coordination design](multi-writer-architecture.md). This changes the roadmap,
+not the historical verification results or the implemented command contract.
