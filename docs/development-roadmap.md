@@ -1,4 +1,4 @@
-# Development roadmap after Milestone 22 partial qualification
+# Development roadmap: commercial command parity
 
 **M22 status: PARTIAL.** The [evidence collector](reconciliation-evidence.md)
 and [durable recovery gate](operator-recovery.md) are implemented in test tooling.
@@ -6,10 +6,11 @@ Incomplete evidence blocks mutation and promotion across both SQL backends and
 threading modes. Exact full-state equivalence, successful evidence-gated
 replacement and complete operator resumption remain unqualified.
 
-**Recommended M23:** complete read-only inventory and approved intent, qualify
-runtime defaults/inheritance and consistent snapshots, implement the writerless
-promotion transition, then prove real recovery in the four-cell matrix.
-Production readiness remains NO-GO; this is a recommendation, not authorization.
+**M23 status: PARTIAL.** The commercial command inventory and architecture are
+complete; public contract contradictions and unspecified errors prevent an
+exact parity claim. Functional parity is the primary development sequence below.
+Outstanding recovery and production qualification remain a separate workstream.
+This roadmap is a plan, not implementation authorization.
 
 ## Priority and boundaries
 
@@ -22,12 +23,12 @@ exclusion, durable holds and uncertain-outcome recovery remain open.
 
 This roadmap preserves the standalone native Kea 3.2.1 architecture, PostgreSQL
 and MariaDB, C++14, existing commands and persistence-only mutation behavior.
-No implementation is part of Milestone 19. Historical results remain in
+Milestones 1–22 remain historical work. Historical results remain in
 [architecture](architecture.md), [release readiness](release-readiness.md),
 [SQL investigation](sql-transaction-investigation.md), and
 [ISC evidence](isc-report-evidence.md).
 
-## Proposed small milestones
+## Historical Milestones 20–22
 
 ### M20 — Explicit mutation admission (PASS)
 
@@ -135,7 +136,7 @@ The original milestone scope is retained below:
 - **Exclusions:** failover during partitions, deliberate DB interruption,
   automatic election, DB lock SQL, and universal read-only MariaDB grant claims.
 
-### M22 — Native read-only reconciliation evidence
+### M22 — Native read-only reconciliation evidence (original proposal)
 
 - **Objective:** allow operators to distinguish visible subnet state from exact
   ownership/conflict evidence after an uncertain write.
@@ -154,66 +155,179 @@ The original milestone scope is retained below:
 - **Exclusions:** direct SQL, transaction reconstruction, automated retry,
   automatic compensation and durable journal service inside the hook.
 
-### M23 — Qualify explicit multi-instance activation
+## Feature parity milestones
 
-- **Objective:** turn the [activation design](runtime-activation-design.md) into
-  an executable operator workflow.
-- **Exact scope:** a small external administrative helper or documented scripted
-  sequence using existing control commands; one change window, canary, normalized
-  active-state comparisons and partial-failure records. Select one form before
-  implementation to avoid building a controller service prematurely.
-- **Expected files:** an administrative script under `scripts/` if justified,
-  focused multi-instance tests, operations and activation docs. No new callouts.
-- **Acceptance:** two consumers on each SQL engine and threading mode remain
-  unchanged before activation; canary-only change is visible; invalid local
-  configuration produces a recorded partial failure; corrected reload converges;
-  restart during a pending window is detected; leases survive deletion. A no-op
-  pull never counts as convergence.
-- **Dependencies:** M21 fencing and M22 reconciliation; node configuration and
-  service probe definitions.
-- **Exclusions:** atomic fan-out, automatic SQL rollback, periodic uncontrolled
-  fetch, HA/lease synchronization and DB fault injection.
+M1–22 remain historical work; see [development history](development-history.md)
+and the results above. M22's original proposal differs from its implemented
+test-tooling scope; its actual PARTIAL result takes precedence.
 
-### M24 — Restricted production qualification
+M23 replaces the former future M23/M24 activation/production proposals with the
+feature sequence below. Their unfinished work is retained in the separate
+hardening workstream. Feature development does not require a production GO,
+but must preserve every existing admission, ownership, hold and activation rule.
 
-- **Objective:** make a deployment-specific readiness decision with explicit
-  residual native SQL risk.
-- **Exact scope:** documented startup/reload/reconnect matrix and supervised
-  administrative restart, measured availability objectives, exact-build artifact
-  installation/rollback and an upgrade rehearsal. Add established non-faulting
-  admission/activation checks to CI; use existing strict acceptance for artifacts.
-- **Expected files:** CI workflow, operations/release documentation, focused
-  lifecycle fixtures and packaging checks only where gaps are demonstrated.
-- **Acceptance:** evidence names target Kea/runtime libraries and deployment;
-  six strict tests pass without skips; write hold survives writer restart at the
-  ingress layer; artifact rollback is rehearsed; consumers' actual availability
-  is measured. PostgreSQL startup/recovery unknowns are either resolved in an
-  approved safe test or recorded as a deployment restriction. Native abort risk
-  and restart limits are explicitly accepted by the operator.
-- **Dependencies:** M20–23 and deployment-specific SLOs; no dependency on an ISC
-  fix. Approval of any new failure testing is separate from this roadmap.
-- **Exclusions:** automatic crash reproduction, broad platform certification,
-  release/version changes by implication and security exploitability claims.
+Every implementation milestone inherits the eight
+[acceptance gates](commercial-parity-gap-analysis.md#acceptance-evidence-for-implementation-families):
+pinned build/native APIs; request/error fixtures; PostgreSQL and MariaDB with
+MT off/on; associations; restart/persistence and explicit activation; applicable
+real packets; alternative evidence; existing regressions and quality.
+No required tests may silently skip. Unresolved public contracts prevent an
+exact compatibility claim for the affected command.
 
-## Future DHCPv4 command coverage
+### M23 — Commercial parity inventory and architecture (PARTIAL)
 
-These API families were checked against the pinned installed public pool header
-and its [versioned upstream source](https://github.com/isc-projects/kea/blob/Kea-3.2.1/src/lib/dhcpsrv/config_backend_pool_dhcp4.h).
-They identify native capabilities, not existing hook features or permission to
-implement them. Current list/get/set/delete cover only minimal standalone subnets.
+Deliver the 74-command [matrix](compatibility-matrix.md), uncertainty ledger,
+[architecture](command-architecture.md) and this plan. The documented inventory
+is complete (36 IPv4, 38 IPv6); public class examples conflict and error behavior
+is incompletely specified. Resolve the affected U1–U8 questions per family
+before registering commercial names. Evidence: `build/milestone23/checks.md`.
 
-| Candidate | Native API surface | Dependencies, validation and tests | Next safety release? |
-| --- | --- | --- | --- |
-| Richer subnet fields | `getSubnet4`, `createUpdateSubnet4` | Preserve full object semantics; define replace/patch rules, cross-field validation and round-trip tests. Existing rich-object rejection must remain until supported. | No |
-| Shared networks | `getSharedNetwork4`, `getAllSharedNetworks4`, `getSharedNetworkSubnets4`, `createUpdateSharedNetwork4`, `deleteSharedNetwork4` | Parent/child associations and inherited values make this high complexity; require safe deletion, selectors, audit, rollback and packet activation tests. | No |
-| Option definitions | `getOptionDef4`, `getAllOptionDefs4`, `createUpdateOptionDef4`, `deleteOptionDef4` | Code/space/type/record validation and dependency protection; test built-in/custom collisions and force-delete semantics before exposing them. | No |
-| Options | `getOption4`, `getAllOptions4`, `createUpdateOption4` overloads for global/network/subnet/pool scopes | Depends on definitions, binary/text encoding and class selection. Test inheritance, scope identity, dependencies and actual packet options. High complexity. | No |
-| Client classes | `getClientClass4`, `getAllClientClasses4`, `createUpdateClientClass4` with `follow_class_name` | Ordered definitions and expressions require dependency/order validation and packet matching tests; empty follow name appends. | No |
-| Global parameters | `getGlobalParameter4`, `getAllGlobalParameters4`, `createUpdateGlobalParameter4` | Stamped native values, types, local override precedence and fleet-wide effects; test merged configuration and invalid activation. Not arbitrary whole-server configuration storage. | No |
-| Server records | `getServer4`, `getAllServers4`, `createUpdateServer4` | Identity/association lifecycle and universal-server rules; prevent orphaning or accidental visibility changes. Server records do not create writer isolation. | No |
-| Audit/read diagnostics | `getRecentAuditEntries`, modified-object getters | Cursor uses time plus ID; test ordering, selectors and retention assumptions. Useful follow-up observability, never a CAS or exactly-once API. | Only narrowly justified reconciliation work |
+### M24 — Shared command infrastructure
 
-Feature families should each receive a separate scoped design after safety gates.
-Do not implement shared networks, options, classes and globals as one milestone.
-No newer C++ standard is required by this plan; see
+Depends on M23. Extract small typed request/context/reply helpers; retain all
+five existing commands and one-backend behavior. Add schema-fixture support and
+an IPv6 manager compile probe, without enabling IPv6 loading or remote commands.
+Acceptance is the concrete baseline-preservation gate in the
+[architecture](command-architecture.md#m24-implementation-boundary), including
+strict six-test SQL/DHCP acceptance without deliberate outages. Produce the
+M25 server/global contract fixtures and explicit remaining evidence questions.
+
+### M25 — DHCPv4 servers and global parameters
+
+Depends on M24; resolve U2 compound-global encoding and U6 server lifecycle
+defaults. Deliver servers first (4 commands), then globals (4 commands).
+Acceptance: eight qualified names, reserved `all` behavior, association
+detach/cascade evidence, scalar and each supported compound value, absent versus
+empty metadata, multi-parameter partial-failure reporting and packet-observed
+global behavior after explicit activation. Unsupported JSON-only settings fail
+clearly; no arbitrary whole-server storage.
+
+### M26 — DHCPv4 option definitions and global options
+
+Depends on M25. Deliver definitions then global options (8 commands); resolve
+U5 force/dependency checks and U7 class-tag identity. Acceptance includes
+custom/built-in option spaces, text/binary data, record/encapsulation validation,
+class-tag omission/empty distinctions, deletion dependency refusal and explicit
+force policy, round trips and actual DHCP option payloads.
+Class filters can be tested with local/native seeded classes; class-management
+commands are not prematurely introduced.
+
+### M27 — DHCPv4 shared networks
+
+Depends on M26. Four commands with full fields, summary/full-child read views,
+association preservation and explicit keep/delete child policy. Acceptance
+covers inherited options, selector-specific children, missing parents, safe
+deletion and real allocation across shared-network subnets.
+
+### M28 — Full DHCPv4 subnets and pools
+
+Depends on M27. Six commands, full native subnet replacement, explicit shared
+network membership and embedded address pools. Acceptance covers rich-object
+round trips, inherited values, association changes, identity conflicts, pool
+replacement and real allocations. Existing minimal `cb-*` semantics remain
+unchanged, including omitted pools and retained leases on delete.
+
+### M29 — DHCPv4 scoped options
+
+Depends on M28. Six set/delete commands for network, subnet and pool scopes.
+Acceptance covers precise parent identity, class filters, option-definition
+dependencies, inherited versus explicit deletion, overlapping-range ambiguity
+and packet-observed precedence. Do not invent scoped get/list commands.
+
+### M30 — DHCPv4 client classes
+
+Depends on M29; resolve U3/U4 schema and response contradictions. Four commands,
+native expression parsing, ordering and dependency behavior, embedded class
+options/definitions. Acceptance includes insertion versus update positioning,
+follow-class handling, KNOWN/UNKNOWN dependencies, invalid/dependent deletion
+and packets selecting each intended class branch.
+
+### M31 — DHCPv4 compatibility qualification
+
+Depends on M25–30. Qualify all 36 IPv4 remote commands together, including
+cross-object replacement/deletion, mixed selectors, batch failures, restarts and
+activation. Freeze versioned request/success/error fixtures and report any
+remaining public-contract uncertainty as PARTIAL. Existing five commands,
+admission and non-interruption SQL/DHCP regressions must still pass. No claim of
+commercial binary conformance without separately authorized, lawful evidence.
+
+### M32 — DHCPv6 loading and test foundation
+
+Depends on M24 and M31. Enable family-aware loading only after lifecycle,
+manager/link and native backend tests pass in real `kea-dhcp6`. Extend shared
+fixtures and the strict runner with mandatory IPv6 tests. Acceptance includes
+independent IPv4/IPv6 processes, read-only admission, MT modes, clean reload and
+real IPv6 allocation/PD fixture baselines. No new remote family names yet.
+
+### M33 — DHCPv6 servers and globals
+
+Depends on M32 and the M25 lessons. Eight commands in two deliverables.
+Acceptance repeats server association lifecycle and the IPv6-specific global
+allowlist, inheritance and packet effects; do not assume IPv4 settings apply.
+
+### M34 — DHCPv6 definitions and global options
+
+Depends on M33 and M26 design. Eight commands, with IPv6 option codes/spaces,
+encapsulation, class filters and binary/text validation. Acceptance includes
+native persistence and actual DHCPv6 option payloads.
+
+### M35 — DHCPv6 shared networks
+
+Depends on M34. Four commands with child inclusion/deletion policies,
+associations, inherited values and real allocation across member subnets.
+
+### M36 — DHCPv6 subnets, address pools and PD pools
+
+Depends on M35. Six subnet commands. Split full subnet/address-pool support
+from embedded PD-pool support within this milestone. Acceptance includes
+prefix/delegated-length and exclusion validation, association round trips,
+IA_NA allocation and real prefix delegation before/after explicit activation.
+
+### M37 — DHCPv6 scoped options
+
+Depends on M36. Eight set/delete commands for network, subnet, address pool and
+PD pool. Acceptance verifies each scope's identity, class filters and inheritance,
+including actual delegated-prefix option behavior where applicable.
+
+### M38 — DHCPv6 client classes
+
+Depends on M37 and resolved M30 contracts. Four commands, IPv6 expressions,
+ordering, dependencies and embedded options. Acceptance includes packet-selected
+allocation/PD branches and invalid expression/dependency rejection.
+
+### M39 — DHCPv6 compatibility qualification
+
+Depends on M33–38. Qualify all 38 IPv6 commands against versioned fixtures,
+both SQL backends and MT modes, restarts, activation, allocation and PD.
+Document remaining command-contract uncertainty independently of native API
+success. IPv4 qualification remains a required regression.
+
+### M40 — Cross-family commercial command parity qualification
+
+Depends on M31 and M39. Reconcile the inventory against the pinned release
+again: all 74 documented names have individual contract, backend, selector,
+error, persistence and activation evidence; no invented CRUD names.
+Run the combined strict matrix without required skips and preserve existing
+commands and recovery safety. Exact parity remains PARTIAL for unresolved
+contract behavior. Other Kea versions and Oracle MySQL require separate
+qualification; MariaDB evidence does not establish Oracle MySQL compatibility.
+
+## Separate deployment-hardening workstream
+
+These are deployment/release gates, not prerequisites for every configuration
+family. New object families must extend reconciliation evidence without
+weakening holds while these gaps remain.
+
+| Work | Dependencies and measurable completion |
+| --- | --- |
+| H1: Complete M22 evidence | Approved intent registry, complete native inventory, defaults/inheritance and consistent snapshots; distinguish exact from incomplete per consumer; prove missing/stale/contradictory evidence cannot resume writes. |
+| H2: Controlled recovery and promotion | H1 plus writerless transition; successful evidence-gated replacement and operator resumption in PostgreSQL/MariaDB × MT off/on, holds surviving workflow/writer/consumer restarts and unknown outcomes. |
+| H3: Deployment ownership and privileges | Explicit deployment boundary, least-effective native grants by role, ingress exclusion and restart ownership; same-host disappearance never qualifies remote/container fencing. Broader fencing requires separate design and authorization. |
+| H4: Restricted production qualification | H1–H3, measured availability, artifact install/rollback, upgrade/restart rehearsals and named deployment restrictions; upstream SQL transaction cleanup remains unresolved until independently verified. Production remains NO-GO meanwhile. |
+
+The former activation proposal is covered by H1/H2 and
+[runtime activation](runtime-activation-design.md). The former restricted
+production proposal is H4. No distributed election, direct hook SQL, automatic
+retry/activation, new failure injection or production rollout is authorized by
+this roadmap. C++14 remains sufficient; see
 [C++ feasibility](cpp-standard-feasibility.md).

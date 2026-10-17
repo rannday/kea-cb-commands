@@ -11,6 +11,21 @@ with packet multithreading enabled and disabled. Oracle MySQL is
 unverified. Build against the exact Kea installation that will load the hook;
 compatibility with other Kea versions is not established.
 
+## Commercial parity plan
+
+The long-term target is independent DHCPv4/DHCPv6 command-interface parity with
+ISC's commercial configuration-backend hook. The Kea 3.2.1
+[command matrix](docs/compatibility-matrix.md) inventories 74 documented commands
+(36 IPv4, 38 IPv6); none of those remote commands is implemented today.
+M23 is **PARTIAL** because public contract contradictions and unspecified errors
+remain. Six commands have limited functional analogues in the existing subnet
+interface.
+
+See the [gap analysis](docs/commercial-parity-gap-analysis.md),
+[shared architecture](docs/command-architecture.md) and
+[feature roadmap](docs/development-roadmap.md). M24 proposes shared command
+infrastructure; production commands and existing contracts are unchanged.
+
 ## Reconciliation and recovery
 
 Milestone 22 is **PARTIAL**; production readiness remains **NO-GO**.
