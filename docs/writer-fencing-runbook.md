@@ -4,6 +4,16 @@ Admission decides whether this hook accepts a command. Fencing removes a former
 writer's ability to execute database mutations. Changing another process's
 `allow-mutations` or server tag does not fence the old process.
 
+## Milestone 22 evidence boundary
+
+Use the [recovery procedure](operator-recovery.md) and
+[evidence model](reconciliation-evidence.md) before resumption. M22 records
+Linux boot ID and process start ticks as well as PID, endpoint and admission.
+Fresh collection is mandatory; missing, stale or incomplete evidence cannot
+authorize promotion. The real M22 gate remains held because exact equivalence
+and the writerless promotion transition are incomplete. Planned replacement
+steps below describe the bounded M21 qualification, not completed M22 recovery.
+
 ## Selected mechanism and qualification boundary
 
 Milestone 21 selects orderly process termination under one trusted local

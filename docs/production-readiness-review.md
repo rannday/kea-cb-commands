@@ -1,4 +1,15 @@
-# Production readiness review — Milestone 19 with M21 addendum
+# Production readiness review — Milestone 19 with M22 addendum
+
+**Milestone 22: PARTIAL; production readiness remains NO-GO.**
+[Read-only reconciliation](reconciliation-evidence.md) preserves native subnet
+data, diagnostic SQL associations/timestamps and independent runtime subtrees.
+[Recovery tooling](operator-recovery.md) adds a durable fail-closed hold, fresh
+observation requirements, process-instance identity and refusal of incomplete
+promotion. It does not prove exact full-state equivalence, successful M22
+replacement or real operator resumption. Native omissions, runtime defaults/
+inheritance and the writerless promotion transition remain open. MariaDB
+consumers still require native CRUD credentials; hook admission is not SQL
+read-only enforcement. M21 results below retain their original bounded scope.
 
 **Milestone 21 addendum (2026-10-17):** the controlled same-host
 [designated-writer deployment](designated-writer-deployment.md) passes on

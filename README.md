@@ -11,6 +11,16 @@ with packet multithreading enabled and disabled. Oracle MySQL is
 unverified. Build against the exact Kea installation that will load the hook;
 compatibility with other Kea versions is not established.
 
+## Reconciliation and recovery
+
+Milestone 22 is **PARTIAL**; production readiness remains **NO-GO**.
+[Read-only evidence](docs/reconciliation-evidence.md) distinguishes persisted
+SQL, approved intent and independently observed consumer runtime state.
+The [recovery gate](docs/operator-recovery.md) retains durable holds and refuses
+incomplete/stale evidence. Exact full-configuration equivalence and real
+evidence-gated resumption are not yet qualified. Production hook behavior is
+unchanged.
+
 ## Commands
 
 | Command | Purpose |

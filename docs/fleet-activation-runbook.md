@@ -4,6 +4,16 @@ A successful mutation persists SQL configuration. It does not activate any Kea
 process. Each consumer must be verified independently; two consumers sharing
 SQL do not form a qualified DHCP HA pair.
 
+## Milestone 22 evidence boundary
+
+The [new collector](reconciliation-evidence.md) preserves each consumer's full
+subnet subtree independently and reports the M21 managed projection separately.
+It retains runtime/native differences rather than stripping fields to match.
+The [durable gate](operator-recovery.md) survives workflow restart and keeps all
+real M22 observations held. M22 is **PARTIAL**: the bounded convergence and manual
+operator verification described below do not authorize full-state resumption.
+A manual acknowledgement cannot clear the new gate.
+
 ## Persistence and canary activation
 
 1. Permit one approved mutation only when the workflow has no outstanding

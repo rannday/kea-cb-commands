@@ -5,6 +5,16 @@ Milestone 21 qualifies a controlled, same-host deployment with unmodified Kea
 writers or production readiness. See the [fencing runbook](writer-fencing-runbook.md)
 and [fleet activation runbook](fleet-activation-runbook.md).
 
+## Milestone 22 qualification
+
+M22 adds [reconciliation evidence](reconciliation-evidence.md) and a
+[durable recovery gate](operator-recovery.md) to the same isolated role harness.
+Its safety qualification runs on both SQL engines and both threading modes.
+It is **PARTIAL**: associations and selector views are retained, but full
+backend/runtime equivalence is incomplete. Every real M22 recovery attempt
+keeps its hold. Successful M21 bounded replacement below is not proof of M22
+exact-state resumption. No remote or distributed fencing is qualified.
+
 ## Topology and isolation
 
 | Role | Hook admission | Interfaces | Control | Configuration backend |

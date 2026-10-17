@@ -5,6 +5,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import secrets
 import shutil
 import signal
@@ -31,14 +32,16 @@ def execute(argv, **kwargs):
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, **kwargs
     ) as process:
         try:
-            output, _ = process.communicate(input=content, timeout=30)
+            output, error = process.communicate(input=content, timeout=30)
         except subprocess.TimeoutExpired:
             # An installer can spawn a bootstrap server; kill its whole group.
             os.killpg(process.pid, signal.SIGKILL)
             process.communicate()
             raise AssertionError(f"{Path(argv[0]).name} timed out") from None
         if process.returncode:
-            raise AssertionError(f"{Path(argv[0]).name} failed (exit {process.returncode})")
+            code = re.search(rb"ERROR (\d+) \(([0-9A-Z]+)\)", error)
+            detail = f"; SQL error {code[1].decode()} state {code[2].decode()}" if code else ""
+            raise AssertionError(f"{Path(argv[0]).name} failed (exit {process.returncode}{detail})")
         return output
 
 
@@ -69,9 +72,10 @@ def run_case(args, directory, multithreading):
         connection = ["--no-defaults", "--protocol=socket",
                       f"--socket={database_socket}", "--user=root"]
 
-        def sql(statement=None, file=None, database="kea_test"):
+        def sql(statement=None, file=None, database="kea_test", user=None):
             content = file.read_bytes() if file else statement.encode("utf-8")
-            return execute([args.mysql_bin, *connection, "--batch", "--skip-column-names",
+            return execute([args.mysql_bin, *connection, *([f"--user={user}"] if user else []),
+                            "--batch", "--skip-column-names",
                             database], input=content, env=environment)
 
         def snapshot(database="kea_test"):
@@ -192,14 +196,20 @@ def run_case(args, directory, multithreading):
                                    KEA_HOOKS_PATH=str(hook_directory))
                 if args.packet:
                     environment["KEA_LFC_EXECUTABLE"] = str(args.lfc.resolve())
-                if args.designated_writer:
+                if args.designated_writer or args.reconciliation:
                     from designated_writer import verify_designated_writer
 
                     sql("CREATE USER 'kea_writer'@'localhost'; "
                         "GRANT SELECT,INSERT,UPDATE,DELETE,EXECUTE ON kea_test.* "
                         "TO 'kea_writer'@'localhost'")
-                    verify_designated_writer(args, directory, config, environment,
-                                             authorization, snapshot)
+                    if args.reconciliation:
+                        from recovery import verify_recovery
+
+                        verify_recovery(args, directory, config, environment,
+                                        authorization, snapshot, sql)
+                    else:
+                        verify_designated_writer(args, directory, config, environment,
+                                                 authorization, snapshot)
                     return
                 if not args.select_only:
                     # Record which native prepared statements require each grant.
@@ -523,9 +533,14 @@ def main():
     parser.add_argument("--lfc", type=Path, help="matching Kea lease-file cleanup executable")
     parser.add_argument("--designated-writer", action="store_true",
                         help="qualify isolated three-role deployment without SQL faults")
+    parser.add_argument("--reconciliation", action="store_true",
+                        help="qualify read-only recovery evidence and fail-closed holds")
     args = parser.parse_args()
-    if args.designated_writer and (not args.packet or args.multiprocess or args.select_only):
-        parser.error("--designated-writer requires --packet and excludes other probe modes")
+    if args.designated_writer and args.reconciliation:
+        parser.error("choose one deployment qualification mode")
+    if ((args.designated_writer or args.reconciliation) and
+            (not args.packet or args.multiprocess or args.select_only)):
+        parser.error("deployment qualification requires --packet and excludes other probe modes")
     if args.packet:
         _isolated()
         if args.lfc is None or not args.lfc.is_file() or not os.access(args.lfc, os.X_OK):

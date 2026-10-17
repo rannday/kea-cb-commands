@@ -20,7 +20,8 @@ from smoke import ADMISSION_ERROR, require_success
 class Role:
     """One supervised daemon. No restart policy; configuration stays private."""
 
-    def __init__(self, args, directory, base, environment, authorization, name, writer, port):
+    def __init__(self, args, directory, base, environment, authorization, name, writer, port,
+                 database_user=None):
         self.root = directory / name
         self.root.mkdir()
         self.name = name
@@ -44,6 +45,8 @@ class Role:
             database["user"] = "kea_reader"
         elif database["type"] == "mysql" and writer:
             database["user"] = "kea_writer"
+        if database_user is not None:
+            database["user"] = database_user
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
             self.control_port = reservation.getsockname()[1]

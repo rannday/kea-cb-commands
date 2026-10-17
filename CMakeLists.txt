@@ -122,6 +122,7 @@ if(BUILD_TESTING)
             ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
     endif()
     option(KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS "Run isolated three-role writer qualification" OFF)
+    option(KEA_DB_COMMANDS_RECONCILIATION_TESTS "Run read-only recovery evidence qualification" OFF)
     option(KEA_DB_COMMANDS_MULTIPROCESS_TESTS "Extend SQL tests with independent Kea processes" OFF)
     option(KEA_DB_COMMANDS_SKIP_OUTAGES "Exclude deliberate SQL stop/recovery scenarios" OFF)
     set(KEA_SQL_ARGUMENTS "")
@@ -187,6 +188,21 @@ if(BUILD_TESTING)
                     LABELS "PostgreSQL;DHCP"
                     ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
             endif()
+            if(KEA_DB_COMMANDS_RECONCILIATION_TESTS)
+                add_test(NAME postgresql_reconciliation
+                    COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/packet_namespace.py
+                        ${CMAKE_CURRENT_SOURCE_DIR}/tests/postgresql.py --packet --reconciliation
+                        --lfc "${KEA_LFC_EXECUTABLE}"
+                        --server "${KEA_DHCP4_EXECUTABLE}"
+                        --hook $<TARGET_FILE:kea_db_commands>
+                        --pgsql-hook "${KEA_POSTGRESQL_HOOK}"
+                        --schema "${KEA_POSTGRESQL_SCHEMA}"
+                        --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
+                        --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql-reconciliation ${KEA_SQL_ARGUMENTS})
+                set_tests_properties(postgresql_reconciliation PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77
+                    LABELS "PostgreSQL;DHCP"
+                    ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+            endif()
         endif()
     endif()
     option(KEA_DB_COMMANDS_MYSQL_TESTS "Run isolated real MySQL/MariaDB integration" OFF)
@@ -248,12 +264,29 @@ if(BUILD_TESTING)
                     LABELS "MySQL;DHCP"
                     ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
             endif()
+            if(KEA_DB_COMMANDS_RECONCILIATION_TESTS)
+                add_test(NAME mysql_reconciliation
+                    COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/tests/packet_namespace.py
+                        ${CMAKE_CURRENT_SOURCE_DIR}/tests/mysql.py --packet --reconciliation
+                        --lfc "${KEA_LFC_EXECUTABLE}"
+                        --server "${KEA_DHCP4_EXECUTABLE}"
+                        --hook $<TARGET_FILE:kea_db_commands>
+                        --mysql-hook "${KEA_MYSQL_HOOK}"
+                        --schema "${KEA_MYSQL_SCHEMA}"
+                        --mysql-bin "${KEA_MYSQL_CLIENT}"
+                        --mysql-install-db "${KEA_MYSQL_INSTALL_DB}"
+                        --mysql-server "${KEA_MYSQL_SERVER}"
+                        --work-dir ${CMAKE_CURRENT_BINARY_DIR}/mysql-reconciliation ${KEA_SQL_ARGUMENTS})
+                set_tests_properties(mysql_reconciliation PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77
+                    LABELS "MySQL;DHCP"
+                    ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+            endif()
         endif()
     endif()
-    if(KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS AND
+    if((KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS OR KEA_DB_COMMANDS_RECONCILIATION_TESTS) AND
        NOT (KEA_DB_COMMANDS_POSTGRESQL_TESTS AND KEA_DB_COMMANDS_MYSQL_TESTS AND
             KEA_DB_COMMANDS_DHCP_TESTS))
-        message(FATAL_ERROR "Designated-writer qualification requires PostgreSQL, MySQL and DHCP tests")
+        message(FATAL_ERROR "Deployment qualification requires PostgreSQL, MySQL and DHCP tests")
     endif()
     if(KEA_DB_COMMANDS_MULTIPROCESS_TESTS)
         foreach(sql_test postgresql_read mysql_read)

@@ -1,11 +1,22 @@
-# Development roadmap after Milestone 21 qualification
+# Development roadmap after Milestone 22 partial qualification
+
+**M22 status: PARTIAL.** The [evidence collector](reconciliation-evidence.md)
+and [durable recovery gate](operator-recovery.md) are implemented in test tooling.
+Incomplete evidence blocks mutation and promotion across both SQL backends and
+threading modes. Exact full-state equivalence, successful evidence-gated
+replacement and complete operator resumption remain unqualified.
+
+**Recommended M23:** complete read-only inventory and approved intent, qualify
+runtime defaults/inheritance and consistent snapshots, implement the writerless
+promotion transition, then prove real recovery in the four-cell matrix.
+Production readiness remains NO-GO; this is a recommendation, not authorization.
 
 ## Priority and boundaries
 
 **M21 acceptance is complete for the controlled same-host deployment.**
 M20/M20.1 local admission and non-interruption SQL/DHCP acceptance remain green.
-The next proposed milestone is **M22: native read-only reconciliation evidence**,
-subject to separate review and authorization. Local admission does not fence
+M22's partial outcome is recorded above; its original proposal below is retained
+for scope and acceptance comparison. Local admission does not fence
 external writers or make the project production-ready. Production restart
 exclusion, durable holds and uncertain-outcome recovery remain open.
 

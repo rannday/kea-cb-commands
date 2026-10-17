@@ -85,9 +85,9 @@ def run_case(args, directory, multithreading):
         pg_environment["PGPASSFILE"] = str(directory / "absent-pgpass")
         connection = ["-h", socket_directory, "-p", "5432", "-U", "postgres"]
 
-        def sql(statement=None, file=None, database="kea_test"):
+        def sql(statement=None, file=None, database="kea_test", user=None):
             argv = [pg / "psql", "-X", "-v", "ON_ERROR_STOP=1", *connection,
-                    "-d", database]
+                    *(["-U", user] if user else []), "-d", database]
             argv += ["-f", str(file)] if file else ["-At", "-c", statement]
             return execute(argv, env=pg_environment)
 
@@ -179,7 +179,7 @@ def run_case(args, directory, multithreading):
                                KEA_HOOKS_PATH=str(hook_directory))
             if args.packet:
                 environment["KEA_LFC_EXECUTABLE"] = str(args.lfc.resolve())
-            if args.designated_writer:
+            if args.designated_writer or args.reconciliation:
                 from designated_writer import verify_designated_writer
 
                 sql("CREATE ROLE kea_writer LOGIN; "
@@ -188,8 +188,14 @@ def run_case(args, directory, multithreading):
                     "GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO kea_writer; "
                     "GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO kea_writer")
                 config["Dhcp4"]["config-control"]["config-databases"][0]["user"] = "kea_writer"
-                verify_designated_writer(args, directory, config, environment,
-                                         authorization, snapshot)
+                if args.reconciliation:
+                    from recovery import verify_recovery
+
+                    verify_recovery(args, directory, config, environment,
+                                    authorization, snapshot, sql)
+                else:
+                    verify_designated_writer(args, directory, config, environment,
+                                             authorization, snapshot)
                 return
             with (directory / "kea.log").open("w", encoding="utf-8") as log:
                 execute([args.server, "-T", config_path], env=environment, cwd=directory)
@@ -467,9 +473,13 @@ def main():
     parser.add_argument("--lfc", type=Path, help="matching Kea lease-file cleanup executable")
     parser.add_argument("--designated-writer", action="store_true",
                         help="qualify isolated three-role deployment without SQL faults")
+    parser.add_argument("--reconciliation", action="store_true",
+                        help="qualify read-only recovery evidence and fail-closed holds")
     args = parser.parse_args()
-    if args.designated_writer and (not args.packet or args.multiprocess):
-        parser.error("--designated-writer requires --packet and excludes --multiprocess")
+    if args.designated_writer and args.reconciliation:
+        parser.error("choose one deployment qualification mode")
+    if (args.designated_writer or args.reconciliation) and (not args.packet or args.multiprocess):
+        parser.error("deployment qualification requires --packet and excludes --multiprocess")
     if args.packet:
         _isolated()
     dependencies = [args.server, args.hook, args.pgsql_hook, args.schema]
