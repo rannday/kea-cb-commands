@@ -1,24 +1,30 @@
 # Development roadmap: commercial command parity
 
-**M26 implementation: PARTIAL.** Eight project-specific option callouts add
-native selected-view list/get and create-only definitions/global options.
-Existing updates/deletes are refused because complete associations and
-cross-scope dependency safety cannot be established. Native encodings and
-explicit activation are qualified in the M26 evidence; exact commercial parity
-remains zero. See [contracts](commands.md) and [counts](compatibility-matrix.md).
-All thirteen earlier command contracts are retained.
+**M27 implementation: PARTIAL.** Four project-specific shared-network callouts
+add native list/get, explicit ANY membership evidence and guarded fresh creation.
+Existing update/delete and membership mutations remain refused. Network options
+are read without adding scoped-option writes. The original 21 contracts and
+M22 recovery restrictions remain intact. See [contracts](commands.md),
+[counts](compatibility-matrix.md) and the
+[dependency-safety backlog](dependency-safety-backlog.md).
+Supported paths passed the strict six-test acceptance runner with zero skips on
+PostgreSQL 18.6 and MariaDB 12.3.3 LTS, both threading modes. Actual DHCP
+OFFER/ACK checks verified global < shared-network < subnet < pool option
+precedence; membership persistence and active readback survived clean restart.
+Existing mutations and exact commercial compatibility remain unqualified.
 
-**Next: M27 — DHCPv4 shared networks.** Reuse the existing family helpers and
-native parsers. Establish full read views, inherited options and child subnet
-membership before enabling writes. Require complete association and child
-policy evidence for update/delete; fail closed if unavailable. Qualify both
-backends/threading modes, restart, explicit activation and real shared-network
-allocation. Do not weaken existing subnet or option restrictions.
+**Next: M28 — full DHCPv4 subnet and pool support.** Extend validated native
+construction and serialization without changing the minimal existing commands.
+Separate rich replacement from membership changes. Before enabling either,
+establish complete associations, preserved inherited options and dependencies,
+identity conflicts and exclusive-writer freshness. Keep unsafe operations refused.
+Acceptance requires both SQL backends/threading modes, restart, explicit
+activation, SQL/audit-preserving refusals and real allocation. Do not make
+commercial aliases until request/response behavior is qualified.
 
-Outstanding association observability, option replacement/deletion, dependency
-checks, server deletion and compound globals remain explicit functional gaps.
-They require their own review and evidence; no implicit force/cascade or
-commercial compatibility claim follows from a native method's availability.
+Outstanding server deletion, global/option replacement/deletion and compound
+globals remain explicit functional gaps with evidence requirements in the
+backlog. Native API availability alone does not authorize cascade or force.
 
 **M22 status: PARTIAL.** The [evidence collector](reconciliation-evidence.md)
 and [durable recovery gate](operator-recovery.md) are implemented in test tooling.
@@ -241,10 +247,14 @@ commands are not prematurely introduced.
 
 ### M27 — DHCPv4 shared networks
 
-Depends on M26. Four commands with full fields, summary/full-child read views,
-association preservation and explicit keep/delete child policy. Acceptance
-covers inherited options, selector-specific children, missing parents, safe
-deletion and real allocation across shared-network subnets.
+**M27 outcome: PARTIAL.** Four project-specific callouts provide native selected
+network reads and ANY membership evidence, plus fresh creation with validated
+name/timers. Existing replacement/deletion and membership mutation are refused.
+Native drivers ignore the member-read selector; the response labels that boundary.
+Diagnostic fixtures investigate membership/inheritance without adding production
+SQL. Remaining full fields, atomic dependency evidence and keep/delete child
+policies are tracked in the [dependency backlog](dependency-safety-backlog.md).
+Production readiness remains NO-GO.
 
 ### M28 — Full DHCPv4 subnets and pools
 

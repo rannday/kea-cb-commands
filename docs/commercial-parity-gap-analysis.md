@@ -1,5 +1,27 @@
 # Commercial parity gap analysis
 
+## M27 implementation update
+
+M27 is **PARTIAL**. Four project-specific `cb-shared-network4-list/get/set/del`
+callouts add native selected-network reads and guarded fresh creation. Creation
+accepts only a name and optional valid/renew/rebind timers. Existing updates and
+deletes are refused; a missing delete returns result 3 without a native write.
+There are 25 registered commands, with no commercial aliases.
+
+Network rows preserve native properties, options and observed server tags.
+Membership is explicitly labelled `membership-selector: "ANY"`: pinned drivers
+ignore the supplied selector for member reads. These children are persisted
+evidence, not the selected consumer's active configuration. The response retains
+`associations-complete: false`; independent network/member reads are not an
+atomic dependency snapshot. See [contracts](commands.md) and the
+[dependency-safety backlog](dependency-safety-backlog.md).
+
+Current functional counts: **3 implemented, 18 partial, 53 missing** of 74;
+DHCPv4: 3/18/15, DHCPv6: 0/0/38. The three new partial analogues are network
+list/get and create-only set. Network delete remains missing despite its
+refusal endpoint. Exact commercial compatibility remains **0 implemented,
+0 partial, 74 missing**. Earlier milestone counts below are historical.
+
 ## M26 implementation update
 
 M26 is **PARTIAL**. Eight project-specific option callouts add selected-view

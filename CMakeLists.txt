@@ -60,7 +60,8 @@ add_library(kea_db_commands MODULE
     src/arguments.cc
     src/subnet4.cc
     src/records4.cc
-    src/options4.cc)
+    src/options4.cc
+    src/shared_network4.cc)
 set_target_properties(kea_db_commands PROPERTIES
     OUTPUT_NAME dhcp_db_commands
     CXX_VISIBILITY_PRESET hidden
@@ -181,7 +182,9 @@ if(BUILD_TESTING)
                 --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
                 --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql
                 ${KEA_MULTIPROCESS_ARGUMENTS} ${KEA_SQL_ARGUMENTS})
-        set_tests_properties(postgresql_read PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77
+        # Include shared-network SQL/audit snapshots and restart coverage in both
+        # threading modes; per-operation deadlines remain unchanged.
+        set_tests_properties(postgresql_read PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77
             LABELS PostgreSQL)
         # Staging upstream's hook changes its relative $ORIGIN search paths.
         # Use the exact matching pkg-config libraries for this test process only.
@@ -199,7 +202,7 @@ if(BUILD_TESTING)
                     --schema "${KEA_POSTGRESQL_SCHEMA}"
                     --pg-bin "${KEA_POSTGRESQL_BIN_DIR}"
                     --work-dir ${CMAKE_CURRENT_BINARY_DIR}/postgresql-dhcp ${KEA_SQL_ARGUMENTS})
-            set_tests_properties(postgresql_dhcp PROPERTIES TIMEOUT 240 SKIP_RETURN_CODE 77
+            set_tests_properties(postgresql_dhcp PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77
                 LABELS "PostgreSQL;DHCP"
                 ENVIRONMENT "LD_LIBRARY_PATH=${KEA_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
             if(KEA_DB_COMMANDS_DESIGNATED_WRITER_TESTS)

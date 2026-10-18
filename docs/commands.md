@@ -1,5 +1,94 @@
 # DHCPv4 configuration commands
 
+## M27: shared networks
+
+These four project-specific commands target pinned Kea 3.2.1 commit
+`1737462bc79276e3269304ea8cd3d1c03400e30d`. They are not aliases for the
+commercial `remote-network4-list/get/set/del` contracts.
+
+| Command | Exact arguments |
+| --- | --- |
+| `cb-shared-network4-list` | `server-tag` |
+| `cb-shared-network4-get` | `server-tag`, `name` |
+| `cb-shared-network4-set` | `server-tag`, one `shared-network` map |
+| `cb-shared-network4-del` | `server-tag`, `name` |
+
+Every request requires an arguments map. Unknown fields, incorrect types,
+per-request backend selectors and multiple server tags are rejected. Exactly one
+configured PostgreSQL or MySQL backend is required. An explicit `server-tag`
+must be `all` or an existing named server; native tag validation applies and
+`any` and NUL are forbidden. The selector is native `ALL()` for `all`, otherwise
+`ONE(tag)`, which can include common fallback configuration. Results from
+different selectors are never merged.
+
+`name` must be a nonempty string of at most 128 bytes, without NUL or surrounding
+whitespace. Set accepts exactly `name` and optional integer `valid-lifetime`,
+`renew-timer`, `rebind-timer`. Timers must be in `1..2147483647` (the common SQL
+integer range); supplied pairs must satisfy renew < rebind < valid. Omitted timers remain unspecified in the
+native object. Embedded subnets, network options, inheritance switches, context
+and all other fields are rejected, including empty values.
+
+```json
+{"command":"cb-shared-network4-set","arguments":{"server-tag":"test-server","shared-network":{"name":"example-network","valid-lifetime":900,"renew-timer":300,"rebind-timer":600}}}
+```
+
+**Set creates only a fresh, empty network.** Before either mutating command,
+`getSharedNetwork4(..., ANY(), name)` checks the globally unique name, including
+networks hidden from the requested selector. Any existing network is refused,
+including an identical request, an empty network, and a differently associated
+network. Existing deletion is always refused; no native deletion API is called.
+The deterministic public refusal text is:
+
+```text
+Existing shared-network mutations are unsupported: complete associations and dependencies cannot be verified.
+```
+
+This conservative policy preserves existing attributes, options, associations
+and membership. It does not mean native network reads omit all associations:
+the pinned drivers reconstruct network tags, which the response preserves.
+A selected read and separate membership query still do not establish a complete,
+atomic dependency snapshot authorizing replacement or deletion. See the
+[dependency-safety backlog](dependency-safety-backlog.md).
+
+Replies use result 0 for a nonempty read or successful create, result 3 for an
+empty list or missing get/delete, and result 1 for admission, validation or native
+failures. Empty/missing deletion performs no native write. Non-error replies use
+`DHCPv4 shared-network operation completed.` and these arguments:
+
+```json
+{"count":1,"shared-networks":[{"name":"example-network","server-tags":["test-server"],"subnet4":[]}],"server-tag":"test-server","associations-complete":false,"membership-selector":"ANY"}
+```
+
+The example abbreviates native network fields; actual rows preserve native
+`SharedNetwork4::toElement()` properties and add observed `server-tags`. Network
+rows sort by name. Each `subnet4` row preserves native subnet serialization and
+observed tags, sorted by subnet ID. Duplicate identities fail closed. Native
+properties and options are returned without inferring omitted fields.
+
+**Membership is backend-wide evidence, not the requested consumer view.** Both
+pinned SQL drivers implement `getSharedNetworkSubnets4` using `ANY` regardless of
+the selector argument. The hook explicitly reports `membership-selector: "ANY"`;
+a listed member can belong to another server selector. Do not treat this list as
+proof that a particular consumer loaded that member, or as an effective inherited
+configuration. `associations-complete: false` prohibits treating these observations
+as complete ownership/dependency evidence. Independent `config-get` and packet
+observations remain necessary after explicit activation.
+
+Set/delete check mutation admission before parsing or backend access. Their
+non-error replies also include `activation-requested: false`. Contract failures
+return public validation text and no arguments; native failures return
+`Configuration backend operation failed; reconcile persisted state before retrying.`
+A create whose selected readback is incomplete returns an error requiring
+reconciliation; that error does not establish rollback. No automatic retry or
+activation occurs.
+
+Reads and refused requests leave SQL and audit state unchanged. Fresh creation
+uses native `createUpdateSharedNetwork4`, with native transaction/audit behavior.
+The absence check is not atomic with that upsert: verified exclusive writer
+ownership remains mandatory. Admission alone is not fencing. Unknown outcomes
+and the existing M22 mutation holds require [operator recovery](operator-recovery.md).
+M22 remains PARTIAL; this command does not establish exact deployment convergence.
+
 ## M26: option definitions and global options
 
 These are project-specific contracts for pinned Kea 3.2.1, **not commercial

@@ -30,7 +30,14 @@ separate operations; the hook never initiates activation.
 ## Implementation layout
 
 `src/diagnostic.cc` contains the four exported C entry points, lifecycle logging
-and message dictionary. `src/commands.cc` contains the five command callouts
+and message dictionary. It registers 25 project-specific commands.
+`src/records4.cc`, `src/options4.cc` and `src/shared_network4.cc` implement
+server/global, option and shared-network families. Network reads expose native
+properties and separately labelled ANY membership; creation accepts only a
+fresh name and optional timers. Existing network writes remain refused.
+See [current command architecture](command-architecture.md) and the
+[dependency backlog](dependency-safety-backlog.md).
+`src/commands.cc` contains the five original command callouts
 and their command-specific responses and explicit mutation admission boundaries.
 The private header `src/command_support.h` shares request extraction, field
 validation, safe contract errors, response publication and exception containment.
@@ -45,7 +52,8 @@ public project API.
 
 `load` checks the process and family, then registers
 `db-commands-diagnostic`, `cb-subnet4-list`, `cb-subnet4-get`, `cb-subnet4-set`
-and `cb-subnet4-del`.
+and `cb-subnet4-del`, together with the implemented server/global, option and
+shared-network callouts documented in [command contracts](commands.md).
 `version` returns the installed header's exact framework
 version. `unload` logs teardown; Kea owns callout deregistration. The stateless
 hook declares multi-threading compatibility for synchronous main-thread command

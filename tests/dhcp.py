@@ -163,11 +163,114 @@ def _pools(row):
             for pool in row["pools"]]
 
 
-def verify_dhcp(send, config, save, directory, snapshot):
+def _verify_shared_network_inheritance(send, config, directory, snapshot, sql, expected):
+    """Diagnostic SQL fixtures qualify native activation, not hook membership writes."""
+    network = "m27-packet"
+    result = require_success(send("cb-shared-network4-set", {
+        "server-tag": "test-server", "shared-network": {"name": network}}))
+    assert result["activation-requested"] is False
+    backend = config["Dhcp4"]["config-control"]["config-databases"][0]["type"]
+    if backend == "postgresql":
+        prefix = ("BEGIN; SELECT createAuditRevisionDHCP4(CURRENT_TIMESTAMP, "
+                  "'all', 'M27 packet inheritance fixture', false); ")
+        persistent = "true"
+    else:
+        prefix = ("START TRANSACTION; CALL createAuditRevisionDHCP4(CURRENT_TIMESTAMP, "
+                  "'all', 'M27 packet inheritance fixture', 0); ")
+        persistent = "1"
+
+    def diagnostic(statements):
+        sql(prefix + statements + "; COMMIT")
+
+    def packet(options):
+        _exchange(directory, "127.0.0.10", "127.0.0.20",
+                  boot_file="m25-packet.efi", expected_options=options)
+
+    def runtime():
+        configuration = require_success(send("config-get"))["Dhcp4"]
+        networks = {row["name"]: row for row in configuration.get("shared-networks", [])}
+        row = networks[network]
+        members = {subnet["id"]: subnet for subnet in row["subnet4"]}
+        assert SUBNET_ID in members
+        assert _pools(members[SUBNET_ID]) == [("127.0.0.10", "127.0.0.20")]
+        return row, members[SUBNET_ID]
+
+    def domain(row):
+        return {option["code"]: option for option in row.get("option-data", [])}[15]["data"]
+
+    before = require_success(send("config-get"))
+    diagnostic(
+        f"UPDATE dhcp4_subnet SET shared_network_name='{network}', "
+        f"modification_ts=CURRENT_TIMESTAMP WHERE subnet_id={SUBNET_ID}; "
+        "INSERT INTO dhcp4_options(code, formatted_value, space, persistent, "
+        "scope_id, shared_network_name, client_classes) VALUES "
+        f"(15, 'm27-network.example', 'dhcp4', {persistent}, 4, '{network}', '[]')")
+    assert require_success(send("config-get")) == before
+    packet(expected)
+    persisted = require_success(send("cb-shared-network4-get", {
+        "server-tag": "test-server", "name": network}))["shared-networks"][0]
+    assert SUBNET_ID in {row["id"] for row in persisted["subnet4"]}
+    before_refusal = snapshot()
+    refused = send("cb-subnet4-set", {"server-tag": "test-server", "subnet4": {
+        "id": SUBNET_ID, "subnet": "127.0.0.0/24", "valid-lifetime": 600}})
+    assert refused["result"] == 1, refused
+    assert snapshot() == before_refusal, "Refused member mutation changed SQL/audit state"
+
+    require_success(send("config-reload"))
+    row, member = runtime()
+    assert domain(row) == "m27-network.example"
+    assert all(option["code"] != 15 for option in member.get("option-data", []))
+    network_options = dict(expected)
+    network_options[15] = b"m27-network.example"
+    packet(network_options)
+
+    diagnostic(
+        "INSERT INTO dhcp4_options(code, formatted_value, space, persistent, "
+        "scope_id, dhcp4_subnet_id, client_classes) VALUES "
+        f"(15, 'm27-subnet.example', 'dhcp4', {persistent}, 1, {SUBNET_ID}, '[]')")
+    require_success(send("config-reload"))
+    row, member = runtime()
+    assert domain(row) == "m27-network.example"
+    assert domain(member) == "m27-subnet.example"
+    subnet_options = dict(expected)
+    subnet_options[15] = b"m27-subnet.example"
+    packet(subnet_options)
+
+    diagnostic(
+        "INSERT INTO dhcp4_options(code, formatted_value, space, persistent, scope_id, "
+        "pool_id, client_classes) SELECT 15, 'm27-pool.example', 'dhcp4', "
+        f"{persistent}, 5, id, '[]' FROM dhcp4_pool WHERE subnet_id={SUBNET_ID}")
+    require_success(send("config-reload"))
+    _, member = runtime()
+    assert domain(member["pools"][0]) == "m27-pool.example"
+    pool_options = dict(expected)
+    pool_options[15] = b"m27-pool.example"
+    packet(pool_options)
+
+    # Return the original minimal standalone subnet to later pool/delete tests.
+    diagnostic(
+        "DELETE FROM dhcp4_options WHERE code=15 AND space='dhcp4' AND "
+        f"((scope_id=4 AND shared_network_name='{network}') OR "
+        f"(scope_id=1 AND dhcp4_subnet_id={SUBNET_ID}) OR "
+        f"(scope_id=5 AND pool_id IN (SELECT id FROM dhcp4_pool "
+        f"WHERE subnet_id={SUBNET_ID}))); "
+        "UPDATE dhcp4_subnet SET shared_network_name=NULL, "
+        f"modification_ts=CURRENT_TIMESTAMP WHERE subnet_id={SUBNET_ID}")
+    require_success(send("config-reload"))
+    assert _pools(_subnets(send, "config-get")[SUBNET_ID]) == [
+        ("127.0.0.10", "127.0.0.20")]
+    packet(expected)
+    print("PASS: diagnostic shared-network membership requires explicit activation; "
+          "nested runtime membership and global < network < subnet < pool domain-option "
+          "precedence verified in actual OFFER/ACK; router/DNS/custom and BOOTP preserved")
+
+
+def verify_dhcp(send, config, save, directory, snapshot, sql=None):
     """Persist with our hook; explicitly activate; prove packet and lease effects.
 
     The caller owns the Kea process, disposable SQL backend, namespace, and all
-    cleanup. This helper never changes networking or performs direct SQL.
+    cleanup. Optional SQL creates disposable diagnostic membership/option fixtures;
+    production commands never perform membership or scoped-option SQL writes.
     """
     _isolated()
     lease_path = Path(directory).resolve() / "leases.csv"
@@ -254,6 +357,9 @@ def verify_dhcp(send, config, save, directory, snapshot):
     _exchange(directory, "127.0.0.10", "127.0.0.20", boot_file="m25-packet.efi")
     print("PASS: persisted global boot-file-name changes actual OFFER/ACK only after activation; "
           "unsafe deletion is refused")
+
+    if sql is not None:
+        _verify_shared_network_inheritance(send, config, directory, snapshot, sql, expected)
 
     # Pool replacement changes backend visibility first, then runtime on pull.
     time.sleep(1.1)

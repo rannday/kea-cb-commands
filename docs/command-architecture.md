@@ -9,7 +9,7 @@ families remain proposals until their implementation milestones. The
 ## Current architecture
 
 One CMake MODULE exports the Kea lifecycle functions. `src/diagnostic.cc`
-registers twenty-one IPv4-only commands; `commands.cc` retains command-specific replies
+registers twenty-five IPv4-only commands; `commands.cc` retains command-specific replies
 and explicit mutation admission. Header-only `command_support.h` shares request
 extraction, required/optional field checks, safe errors and response publication.
 `backend_support.h` shares typed per-invocation manager access, single-backend
@@ -50,11 +50,29 @@ hexadecimal letter case; payload bytes define encoding equivalence.
 M22 recovery tooling is unchanged. These callouts do not implement durable holds
 inside the hook or qualify evidence-gated resumption.
 
+## M27 shared-network handlers
+
+`shared_network4.cc` adds four explicit callouts using the existing request,
+response, admission and typed backend helpers. Reads serialize native networks
+and separately fetched native member subnets in deterministic name/ID order.
+Observed tags are preserved. Pinned drivers fetch members with ANY independently
+of the selected network view, so the response labels that scope and does not
+claim an active consumer view or complete atomic dependency evidence.
+
+Set checks the global native ANY name view before allowing fresh creation of
+a validated name and optional timers. Every existing-network write is refused,
+including selector-invisible records. Delete only reports missing names; it
+never invokes a native delete. No option/membership mutation path, direct SQL,
+activation or retry is added. Preflight is safe only within the established
+exclusive-writer boundary, not a cross-process lock.
+See the [dependency backlog](dependency-safety-backlog.md).
+
 ## Registration and lifecycle
 
 M24 retained five explicit registrations. M25 adds eight explicit project-specific
 registrations in the same lifecycle boundary. M26 adds eight option callouts;
-all thirteen earlier contracts remain unchanged. When additional families justify
+all thirteen earlier contracts remain unchanged. M27 adds four shared-network
+callouts while retaining all 21 earlier contracts. When additional families justify
 it, use a small static descriptor table containing command name, DHCP family,
 read/mutation classification and callout pointer. Register only implemented,
 qualified commands. Keep the existing five names and request/response behavior.

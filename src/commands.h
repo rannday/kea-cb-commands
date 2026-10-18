@@ -28,6 +28,11 @@ int global4List(isc::hooks::CalloutHandle& handle);
 int global4Get(isc::hooks::CalloutHandle& handle);
 int global4Set(isc::hooks::CalloutHandle& handle);
 int global4Del(isc::hooks::CalloutHandle& handle);
+int sharedNetwork4List(isc::hooks::CalloutHandle& handle);
+int sharedNetwork4Get(isc::hooks::CalloutHandle& handle);
+int sharedNetwork4Set(isc::hooks::CalloutHandle& handle);
+int sharedNetwork4Del(isc::hooks::CalloutHandle& handle);
+
 int optionDef4List(isc::hooks::CalloutHandle& handle);
 int optionDef4Get(isc::hooks::CalloutHandle& handle);
 int optionDef4Set(isc::hooks::CalloutHandle& handle);

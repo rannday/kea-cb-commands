@@ -6,6 +6,7 @@ import base64
 import ipaddress
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -18,6 +19,10 @@ from mutation import configure_admission, verify_mutations
 from lifecycle import verify_lifecycle
 from records4 import verify_records, verify_records_restart
 from options4 import verify_options, verify_options_restart
+from shared_network4 import (
+    prepare_shared_network_restart, verify_shared_network_membership,
+    verify_shared_networks, verify_shared_networks_restart,
+)
 from concurrency import verify_multiprocess
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
@@ -68,7 +73,9 @@ def execute(argv, **kwargs):
         [str(item) for item in argv], capture_output=True, timeout=30, **kwargs
     )
     if result.returncode:
-        raise AssertionError(f"{Path(argv[0]).name} failed (exit {result.returncode})")
+        state = re.search(rb"ERROR:\s+([0-9A-Z]{5})\s", result.stderr)
+        detail = f", SQLSTATE {state[1].decode()}" if state else ""
+        raise AssertionError(f"{Path(argv[0]).name} failed (exit {result.returncode}{detail})")
     return result.stdout
 
 
@@ -88,7 +95,8 @@ def run_case(args, directory, multithreading):
         connection = ["-h", socket_directory, "-p", "5432", "-U", "postgres"]
 
         def sql(statement=None, file=None, database="kea_test", user=None):
-            argv = [pg / "psql", "-X", "-v", "ON_ERROR_STOP=1", *connection,
+            argv = [pg / "psql", "-X", "-v", "ON_ERROR_STOP=1",
+                    "-v", "VERBOSITY=sqlstate", *connection,
                     *(["-U", user] if user else []), "-d", database]
             argv += ["-f", str(file)] if file else ["-At", "-c", statement]
             return execute(argv, env=pg_environment)
@@ -406,6 +414,8 @@ def run_case(args, directory, multithreading):
                 verify_lifecycle(send, rows_snapshot, sql, config, save)
                 verify_records(send, rows_snapshot, sql, config, save)
                 verify_options(send, rows_snapshot, sql, config, save)
+                verify_shared_networks(send, rows_snapshot, sql, config, save)
+                verify_shared_network_membership(send, rows_snapshot, sql, config, save)
                 if args.multiprocess:
                     verify_multiprocess(
                         args, directory, config, environment, authorization, send, sql,
@@ -415,7 +425,8 @@ def run_case(args, directory, multithreading):
                         lambda: sql("REVOKE INSERT ON dhcp4_subnet_server FROM kea_writer"),
                         lambda: sql("GRANT INSERT ON dhcp4_subnet_server TO kea_writer"))
                 if args.packet:
-                    verify_dhcp(send, config, save, directory, rows_snapshot)
+                    verify_dhcp(send, config, save, directory, rows_snapshot, sql)
+                prepare_shared_network_restart(send, sql, config)
                 require_success(send("shutdown"))
                 assert process.wait(timeout=10) == 0
                 process = subprocess.Popen(
@@ -437,6 +448,7 @@ def run_case(args, directory, multithreading):
                         time.sleep(0.1)
                 verify_records_restart(send, args.packet)
                 verify_options_restart(send)
+                verify_shared_networks_restart(send, sql, config)
                 if args.packet:
                     verify_packet_restart(send, directory)
                 require_success(send("shutdown"))

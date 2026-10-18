@@ -1,5 +1,27 @@
 # Commercial command compatibility matrix
 
+## M27 implementation update
+
+M27 is **PARTIAL**. Four project-specific `cb-shared-network4-list/get/set/del`
+callouts add native selected-network reads and guarded fresh creation. Creation
+accepts only a name and optional valid/renew/rebind timers. Existing updates and
+deletes are refused; a missing delete returns result 3 without a native write.
+There are 25 registered commands, with no commercial aliases.
+
+Network rows preserve native properties, options and observed server tags.
+Membership is explicitly labelled `membership-selector: "ANY"`: pinned drivers
+ignore the supplied selector for member reads. These children are persisted
+evidence, not the selected consumer's active configuration. The response retains
+`associations-complete: false`; independent network/member reads are not an
+atomic dependency snapshot. See [contracts](commands.md) and the
+[dependency-safety backlog](dependency-safety-backlog.md).
+
+Current functional counts: **3 implemented, 18 partial, 53 missing** of 74;
+DHCPv4: 3/18/15, DHCPv6: 0/0/38. The three new partial analogues are network
+list/get and create-only set. Network delete remains missing despite its
+refusal endpoint. Exact commercial compatibility remains **0 implemented,
+0 partial, 74 missing**. Earlier milestone counts below are historical.
+
 ## M26 implementation update
 
 M26 is **PARTIAL**. Eight project-specific option callouts add selected-view
@@ -284,10 +306,10 @@ dependencies, validation and create/replace/delete semantics.
 | [`remote-global-parameter6-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter6-get-all.json) | v6 | GP; S | `parameters`, `count` | `getAllGlobalParameters6` | Missing: schema, native handler and qualification; U2 |
 | [`remote-global-parameter6-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter6-get.json) | v6 | GP; S | `parameters`, `count` | `getGlobalParameter6` | Missing: schema, native handler and qualification; U2 |
 | [`remote-global-parameter6-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter6-set.json) | v6 | GP; S | `parameters`, `count` | `createUpdateGlobalParameter6` | Missing: schema, native handler and qualification; U2 |
-| [`remote-network4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network4-del.json) | v4 | NW; N | `count` | `deleteSharedNetwork4 + deleteSharedNetworkSubnets4 (delete children)` | Missing: schema, native handler and qualification |
-| [`remote-network4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network4-get.json) | v4 | NW; N | `shared-networks`, `count` | `getSharedNetwork4 + getSharedNetworkSubnets4 (full)` | Missing: schema, native handler and qualification |
-| [`remote-network4-list`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network4-list.json) | v4 | NW; L | `shared-networks`, `count` | `getAllSharedNetworks4` | Missing: schema, native handler and qualification |
-| [`remote-network4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network4-set.json) | v4 | NW; W | none | `createUpdateSharedNetwork4` | Missing: schema, native handler and qualification |
+| [`remote-network4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network4-del.json) | v4 | NW; N | `count` | `deleteSharedNetwork4 + deleteSharedNetworkSubnets4 (delete children)` | Missing: cb refusal endpoint only; existing deletion unsupported |
+| [`remote-network4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network4-get.json) | v4 | NW; N | `shared-networks`, `count` | `getSharedNetwork4 + getSharedNetworkSubnets4 (full)` | Partial: cb-shared-network4-get; different schema; native ANY children, incomplete dependency evidence |
+| [`remote-network4-list`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network4-list.json) | v4 | NW; L | `shared-networks`, `count` | `getAllSharedNetworks4` | Partial: cb-shared-network4-list; full selected network rows rather than commercial summaries |
+| [`remote-network4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network4-set.json) | v4 | NW; W | none | `createUpdateSharedNetwork4` | Partial: cb-shared-network4-set; fresh minimal creation only; existing updates refused |
 | [`remote-network6-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network6-del.json) | v6 | NW; N | `count` | `deleteSharedNetwork6 + deleteSharedNetworkSubnets6 (delete children)` | Missing: schema, native handler and qualification |
 | [`remote-network6-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network6-get.json) | v6 | NW; N | `shared-networks`, `count` | `getSharedNetwork6 + getSharedNetworkSubnets6 (full)` | Missing: schema, native handler and qualification |
 | [`remote-network6-list`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network6-list.json) | v6 | NW; L | `shared-networks`, `count` | `getAllSharedNetworks6` | Missing: schema, native handler and qualification |

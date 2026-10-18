@@ -1,7 +1,7 @@
 # Kea Database Commands
 
 An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets, server records,
-selected global parameters, option definitions and global options in ISC Kea's
+selected global parameters, option definitions, global options and shared networks in ISC Kea's
 SQL configuration backend. It targets
 **unmodified Kea 3.2.1 on Linux** and uses Kea's native PostgreSQL and
 MySQL/MariaDB backend APIs and schema. It requires
@@ -29,7 +29,11 @@ global set currently creates only when the selected native view is empty.
 M26 adds eight project-specific option commands: list/get and create-only
 native definitions/global options. Existing updates/deletes remain refused
 because complete associations and dependency safety cannot be verified.
-Functional coverage is 3 implemented, 15 partial, 56 missing of 74; exact
+M27 adds four shared-network callouts: native reads and guarded fresh creation;
+existing updates/deletes and membership writes remain refused. Member readback
+uses native ANY scope, explicitly separated from consumer activation. See the
+[dependency-safety backlog](docs/dependency-safety-backlog.md).
+Functional coverage is 3 implemented, 18 partial, 53 missing of 74; exact
 commercial compatibility remains zero. Production readiness remains NO-GO.
 
 See the [gap analysis](docs/commercial-parity-gap-analysis.md),
@@ -53,6 +57,7 @@ unchanged.
 
 | Command | Purpose |
 | --- | --- |
+| `cb-shared-network4-list/get/set/del` | Read native networks/membership; create minimal new networks; refuse existing writes |
 | `cb-option-def4-list/get/set/del` | Read/create native definitions; refuse existing update/delete |
 | `cb-option4-global-list/get/set/del` | Read/create native global options; refuse existing update/delete |
 | `cb-server4-list`, `cb-server4-get` | Read native server records |
@@ -68,7 +73,8 @@ unchanged.
 See the exact [get/set/delete contracts](docs/commands.md) and
 [list contract](docs/postgresql.md#command-contract) before using them.
 The hook requires one configured backend. It does not implement commercial
-`cb_cmds` compatibility, shared-network management, existing option replacement/deletion
+`cb_cmds` compatibility, shared-network replacement/deletion or membership mutation,
+existing option replacement/deletion
 or DHCPv6.
 
 ## Obtain a release
