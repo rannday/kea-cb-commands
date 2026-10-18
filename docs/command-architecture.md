@@ -9,7 +9,7 @@ families remain proposals until their implementation milestones. The
 ## Current architecture
 
 One CMake MODULE exports the Kea lifecycle functions. `src/diagnostic.cc`
-registers thirteen IPv4-only commands; `commands.cc` retains command-specific replies
+registers twenty-one IPv4-only commands; `commands.cc` retains command-specific replies
 and explicit mutation admission. Header-only `command_support.h` shares request
 extraction, required/optional field checks, safe errors and response publication.
 `backend_support.h` shares typed per-invocation manager access, single-backend
@@ -30,10 +30,31 @@ Keep this architecture. Add small shared command support and typed,
 family-specific handlers as their milestones arrive. Do not build a generic
 SQL layer, configuration store, controller service or universal CRUD framework.
 
+## M26 option handlers
+
+`options4.cc` uses the existing command boundary and typed backend helpers.
+Eight explicit callouts dispatch to small option-family operations; each write
+checks admission before parsing or backend access. Only absent selected
+identities may be created; existing update/delete is refused. Native read
+metadata is explicitly incomplete, never used as complete ownership evidence.
+
+Individual `OptionDefParser` objects validate definitions without invoking the
+list parser that changes runtime definitions. A small `OptionDataParser`
+subclass resolves selected SQL definitions and native built-in/vendor/last-resort
+definitions, excluding process-global runtime fallback. Native encoding and
+serialization remain authoritative; no SQL or independent codec is introduced.
+Native collections serialize definitions/options, with deterministic identity
+ordering and observed association metadata. Binary serialization may normalize
+hexadecimal letter case; payload bytes define encoding equivalence.
+
+M22 recovery tooling is unchanged. These callouts do not implement durable holds
+inside the hook or qualify evidence-gated resumption.
+
 ## Registration and lifecycle
 
 M24 retained five explicit registrations. M25 adds eight explicit project-specific
-registrations in the same lifecycle boundary. When additional families justify
+registrations in the same lifecycle boundary. M26 adds eight option callouts;
+all thirteen earlier contracts remain unchanged. When additional families justify
 it, use a small static descriptor table containing command name, DHCP family,
 read/mutation classification and callout pointer. Register only implemented,
 qualified commands. Keep the existing five names and request/response behavior.

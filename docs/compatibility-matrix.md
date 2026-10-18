@@ -1,5 +1,28 @@
 # Commercial command compatibility matrix
 
+## M26 implementation update
+
+M26 is **PARTIAL**. Eight project-specific option callouts add selected-view
+list/get and create-only definitions/global options. Existing option updates
+and deletes are refused: native readback hides other associations, and native
+definition dependency checks do not establish safety across all scopes. Missing
+deletes return an empty result without invoking native deletion. No force or
+cascade is offered. See [contracts](commands.md) for exact schemas.
+
+Native option parsers and serializers preserve CSV, binary, numeric, string,
+address, array and record payloads. Encoding consults selected SQL definitions
+and native built-ins, excluding stale process-global runtime definitions.
+Returned server tags are observed selector metadata, with
+`associations-complete: false`; they never authorize an existing mutation.
+
+Current functional counts: **3 implemented, 15 partial, 56 missing** of 74;
+DHCPv4: 3/15/18, DHCPv6: 0/0/38. The six new partial analogues are two lists,
+two gets and two create-only sets. Both option delete operations remain missing
+functional equivalents despite their safe refusal endpoints. Exact commercial
+compatibility remains **0 implemented, 0 partial, 74 missing**; no remote names
+are registered. The M25 counts below are historical.
+
+
 ## M25 implementation update
 
 M25 is **PARTIAL**: native server list/get/create-update and a 15-name scalar
@@ -42,7 +65,7 @@ durable recovery tooling, external fencing and upstream SQL cleanup are unchange
 
 **M23 status: PARTIAL.** The command inventory is complete; public contract
 contradictions and unspecified error behavior prevent an exact compatibility
-claim. The M25 implementation update above records functional analogues only;
+claim. The implementation updates above record functional analogues only;
 no commercial runtime verification or remote registration is claimed.
 
 The target is **ISC Kea 3.2.1**, tag `Kea-3.2.1`, commit
@@ -66,11 +89,11 @@ Context7 returned master documentation; it is excluded from the pinned baseline.
 | Counting basis | Implemented | Partial | Missing | Total |
 | --- | --- | --- | --- | --- |
 | Exact commercial command interface | 0 | 0 | 74 | 74 |
-| Functional analogues in existing commands | 3 | 9 | 62 | 74 |
-| DHCPv4 functional analogues | 3 | 9 | 24 | 36 |
+| Functional analogues in existing commands | 3 | 15 | 56 | 74 |
+| DHCPv4 functional analogues | 3 | 15 | 18 | 36 |
 | DHCPv6 functional analogues | 0 | 0 | 38 | 38 |
 
-Six of the nine partial analogues are the v4 subnet list, get-by-id, get-by-prefix, set,
+Six of the fifteen partial analogues are the v4 subnet list, get-by-id, get-by-prefix, set,
 del-by-id and del-by-prefix operations. They share four existing `cb-subnet4-*`
 commands; they are neither six registered commands nor compatible aliases.
 The diagnostic is outside the commercial inventory.
@@ -269,18 +292,18 @@ dependencies, validation and create/replace/delete semantics.
 | [`remote-network6-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network6-get.json) | v6 | NW; N | `shared-networks`, `count` | `getSharedNetwork6 + getSharedNetworkSubnets6 (full)` | Missing: schema, native handler and qualification |
 | [`remote-network6-list`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network6-list.json) | v6 | NW; L | `shared-networks`, `count` | `getAllSharedNetworks6` | Missing: schema, native handler and qualification |
 | [`remote-network6-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-network6-set.json) | v6 | NW; W | none | `createUpdateSharedNetwork6` | Missing: schema, native handler and qualification |
-| [`remote-option-def4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def4-del.json) | v4 | OD; S | `count` | `deleteOptionDef4` | Missing: schema, native handler and qualification; U5 |
-| [`remote-option-def4-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def4-get-all.json) | v4 | OD; S | `option-defs`, `count` | `getAllOptionDefs4` | Missing: schema, native handler and qualification; U5 |
-| [`remote-option-def4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def4-get.json) | v4 | OD; S | `option-defs`, `count` | `getOptionDef4` | Missing: schema, native handler and qualification; U5 |
-| [`remote-option-def4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def4-set.json) | v4 | OD; S | none | `createUpdateOptionDef4` | Missing: schema, native handler and qualification; U5 |
+| [`remote-option-def4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def4-del.json) | v4 | OD; S | `count` | `deleteOptionDef4` | Missing: cb refusal endpoint only; existing deletion unsupported; U5 |
+| [`remote-option-def4-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def4-get-all.json) | v4 | OD; S | `option-defs`, `count` | `getAllOptionDefs4` | Partial: cb selected native read; incomplete associations; project envelope; U5 |
+| [`remote-option-def4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def4-get.json) | v4 | OD; S | `option-defs`, `count` | `getOptionDef4` | Partial: cb selected native read; incomplete associations; project envelope; U5 |
+| [`remote-option-def4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def4-set.json) | v4 | OD; S | none | `createUpdateOptionDef4` | Partial: cb native create-only; existing update refused; project envelope; U5 |
 | [`remote-option-def6-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def6-del.json) | v6 | OD; S | `count` | `deleteOptionDef6` | Missing: schema, native handler and qualification; U5 |
 | [`remote-option-def6-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def6-get-all.json) | v6 | OD; S | `option-defs`, `count` | `getAllOptionDefs6` | Missing: schema, native handler and qualification; U5 |
 | [`remote-option-def6-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def6-get.json) | v6 | OD; S | `option-defs`, `count` | `getOptionDef6` | Missing: schema, native handler and qualification; U5 |
 | [`remote-option-def6-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option-def6-set.json) | v6 | OD; S | none | `createUpdateOptionDef6` | Missing: schema, native handler and qualification; U5 |
-| [`remote-option4-global-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-del.json) | v4 | OG; S | `count` | `deleteOption4 (global)` | Missing: schema, native handler and qualification |
-| [`remote-option4-global-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-get-all.json) | v4 | OG; S | `options`, `count` | `getAllOptions4 (global)` | Missing: schema, native handler and qualification |
-| [`remote-option4-global-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-get.json) | v4 | OG; S | `options` | `getOption4 (global)` | Missing: schema, native handler and qualification |
-| [`remote-option4-global-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-set.json) | v4 | OG; S | `options` | `createUpdateOption4 (global)` | Missing: schema, native handler and qualification |
+| [`remote-option4-global-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-del.json) | v4 | OG; S | `count` | `deleteOption4 (global)` | Missing: cb refusal endpoint only; existing deletion unsupported |
+| [`remote-option4-global-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-get-all.json) | v4 | OG; S | `options`, `count` | `getAllOptions4 (global)` | Partial: cb selected native read; incomplete associations; project envelope |
+| [`remote-option4-global-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-get.json) | v4 | OG; S | `options` | `getOption4 (global)` | Partial: cb selected native read; incomplete associations; project envelope |
+| [`remote-option4-global-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-set.json) | v4 | OG; S | `options` | `createUpdateOption4 (global)` | Partial: cb native create-only; existing update refused; project envelope |
 | [`remote-option4-network-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-network-del.json) | v4 | OS; N | `count` | `deleteOption4 (network name)` | Missing: schema, native handler and qualification; U6 |
 | [`remote-option4-network-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-network-set.json) | v4 | OS; N | `options` | `createUpdateOption4 (network name)` | Missing: schema, native handler and qualification; U6 |
 | [`remote-option4-pool-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-pool-del.json) | v4 | OS; N | `count` | `deleteOption4 (address range)` | Missing: schema, native handler and qualification; U6 |

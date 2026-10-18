@@ -28,6 +28,14 @@ int global4List(isc::hooks::CalloutHandle& handle);
 int global4Get(isc::hooks::CalloutHandle& handle);
 int global4Set(isc::hooks::CalloutHandle& handle);
 int global4Del(isc::hooks::CalloutHandle& handle);
+int optionDef4List(isc::hooks::CalloutHandle& handle);
+int optionDef4Get(isc::hooks::CalloutHandle& handle);
+int optionDef4Set(isc::hooks::CalloutHandle& handle);
+int optionDef4Del(isc::hooks::CalloutHandle& handle);
+int optionGlobal4List(isc::hooks::CalloutHandle& handle);
+int optionGlobal4Get(isc::hooks::CalloutHandle& handle);
+int optionGlobal4Set(isc::hooks::CalloutHandle& handle);
+int optionGlobal4Del(isc::hooks::CalloutHandle& handle);
 } // namespace kea_db_commands
 
 #endif

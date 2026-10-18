@@ -21,6 +21,11 @@ RECORD_COMMANDS = tuple(
     for family in ("server", "global-parameter")
     for operation in ("list", "get", "set", "del")
 )
+OPTION_COMMANDS = tuple(
+    f"cb-{family}-{operation}"
+    for family in ("option-def4", "option4-global")
+    for operation in ("list", "get", "set", "del")
+)
 ADMISSION_ERROR = {"result": 1, "text": (
     "Mutations are disabled; configure allow-mutations: true on the "
     "designated administrative writer.")}
@@ -37,6 +42,14 @@ def verify_denied(send):
         "cb-global-parameter4-set": {
             "server-tag": "all", "name": "authoritative", "value": False},
         "cb-global-parameter4-del": {"server-tag": "all", "name": "authoritative"},
+        "cb-option-def4-set": {"server-tag": "all", "option-def": {
+            "name": "test", "code": 224, "space": "dhcp4", "type": "string"}},
+        "cb-option-def4-del": {"server-tag": "all", "option-def": {
+            "code": 224, "space": "dhcp4"}},
+        "cb-option4-global-set": {"server-tag": "all", "option": {
+            "code": 3, "space": "dhcp4", "data": "192.0.2.1"}},
+        "cb-option4-global-del": {"server-tag": "all", "option": {
+            "code": 3, "space": "dhcp4"}},
     }
     for name, valid in mutations.items():
         for arguments in (valid, None, {}, [], False, 1, "invalid", {"unexpected": True}):
@@ -136,9 +149,19 @@ def verify_argument_contracts(send):
         ("cb-global-parameter4-del", {"server-tag": "all", "name": "authoritative"}),
     ):
         assert send(name, arguments) == backend_error, (name, arguments)
-    for name in RECORD_COMMANDS:
+    for name in RECORD_COMMANDS + OPTION_COMMANDS:
         for arguments in ([], False, 1, "invalid", {"unexpected": True}):
             assert send(name, arguments)["result"] == 1, (name, arguments)
+    for family, field in (("option-def4", "option-def"), ("option4-global", "option")):
+        for operation in ("list", "get", "set", "del"):
+            arguments = {"server-tag": "all"}
+            if operation != "list":
+                obj = {"code": 224, "space": "dhcp4"}
+                if operation == "set":
+                    obj.update({"name": "test", "type": "string"} if field == "option-def"
+                               else {"data": "abc", "csv-format": False})
+                arguments[field] = obj
+            assert send(f"cb-{family}-{operation}", arguments) == backend_error
     for name, value in (("authoritative", 1), ("renew-timer", True),
                         ("boot-file-name", []), ("dhcp-ddns", {})):
         assert send("cb-global-parameter4-set", {
@@ -242,7 +265,7 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
             assert "cb-subnet4-set" in names
             assert not any(name.startswith("remote-") for name in names)
             if mutation_admission:
-                assert set(RECORD_COMMANDS) <= set(names), names
+                assert set(RECORD_COMMANDS + OPTION_COMMANDS) <= set(names), names
                 verify_denied(send)
                 config["Dhcp4"]["hooks-libraries"][0]["parameters"] = {"allow-mutations": True}
                 save()
@@ -284,7 +307,7 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
             require_success(send("config-reload"))
             assert "cb-subnet4-set" not in require_success(send("list-commands"))
             if mutation_admission:
-                for name in RECORD_COMMANDS:
+                for name in RECORD_COMMANDS + OPTION_COMMANDS:
                     assert name not in require_success(send("list-commands"))
                     assert send(name)["result"] == 2
             for name in ("cb-subnet4-get", "cb-subnet4-del"):

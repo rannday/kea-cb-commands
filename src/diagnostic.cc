@@ -81,6 +81,14 @@ DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
         handle.registerCommandCallout("cb-global-parameter4-get", global4Get);
         handle.registerCommandCallout("cb-global-parameter4-set", global4Set);
         handle.registerCommandCallout("cb-global-parameter4-del", global4Del);
+        handle.registerCommandCallout("cb-option-def4-list", optionDef4List);
+        handle.registerCommandCallout("cb-option-def4-get", optionDef4Get);
+        handle.registerCommandCallout("cb-option-def4-set", optionDef4Set);
+        handle.registerCommandCallout("cb-option-def4-del", optionDef4Del);
+        handle.registerCommandCallout("cb-option4-global-list", optionGlobal4List);
+        handle.registerCommandCallout("cb-option4-global-get", optionGlobal4Get);
+        handle.registerCommandCallout("cb-option4-global-set", optionGlobal4Set);
+        handle.registerCommandCallout("cb-option4-global-del", optionGlobal4Del);
         LOG_INFO(logger, "DB_COMMANDS_LOADED");
         allow_mutations = requested;
         return 0;

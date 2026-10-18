@@ -1,7 +1,8 @@
 # Kea Database Commands
 
-An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets, server records
-and selected global parameters in ISC Kea's SQL configuration backend. It targets
+An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets, server records,
+selected global parameters, option definitions and global options in ISC Kea's
+SQL configuration backend. It targets
 **unmodified Kea 3.2.1 on Linux** and uses Kea's native PostgreSQL and
 MySQL/MariaDB backend APIs and schema. It requires
 no custom Kea distribution, proprietary hooks or Docker.
@@ -25,6 +26,12 @@ is refused because native orphan cleanup cannot be verified safe. Existing
 global updates/deletes are refused because native readback hides associations;
 global set currently creates only when the selected native view is empty.
 
+M26 adds eight project-specific option commands: list/get and create-only
+native definitions/global options. Existing updates/deletes remain refused
+because complete associations and dependency safety cannot be verified.
+Functional coverage is 3 implemented, 15 partial, 56 missing of 74; exact
+commercial compatibility remains zero. Production readiness remains NO-GO.
+
 See the [gap analysis](docs/commercial-parity-gap-analysis.md),
 [shared architecture](docs/command-architecture.md) and
 [feature roadmap](docs/development-roadmap.md). M24 extracts shared request,
@@ -46,6 +53,8 @@ unchanged.
 
 | Command | Purpose |
 | --- | --- |
+| `cb-option-def4-list/get/set/del` | Read/create native definitions; refuse existing update/delete |
+| `cb-option4-global-list/get/set/del` | Read/create native global options; refuse existing update/delete |
 | `cb-server4-list`, `cb-server4-get` | Read native server records |
 | `cb-server4-set` | Create/update a server description |
 | `cb-server4-del` | Report missing records; refuse existing-record deletion |
@@ -59,7 +68,8 @@ unchanged.
 See the exact [get/set/delete contracts](docs/commands.md) and
 [list contract](docs/postgresql.md#command-contract) before using them.
 The hook requires one configured backend. It does not implement commercial
-`cb_cmds` compatibility, shared-network management, option mutations or DHCPv6.
+`cb_cmds` compatibility, shared-network management, existing option replacement/deletion
+or DHCPv6.
 
 ## Obtain a release
 

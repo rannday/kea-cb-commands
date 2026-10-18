@@ -17,6 +17,7 @@ from pathlib import Path
 from mutation import configure_admission, verify_mutations
 from lifecycle import verify_lifecycle
 from records4 import verify_records, verify_records_restart
+from options4 import verify_options, verify_options_restart
 from concurrency import verify_multiprocess
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
@@ -404,6 +405,7 @@ def run_case(args, directory, multithreading):
                     lambda: sql("GRANT INSERT ON dhcp4_subnet_server TO kea_writer"))
                 verify_lifecycle(send, rows_snapshot, sql, config, save)
                 verify_records(send, rows_snapshot, sql, config, save)
+                verify_options(send, rows_snapshot, sql, config, save)
                 if args.multiprocess:
                     verify_multiprocess(
                         args, directory, config, environment, authorization, send, sql,
@@ -434,6 +436,7 @@ def run_case(args, directory, multithreading):
                         assert process.poll() is None and time.monotonic() < deadline
                         time.sleep(0.1)
                 verify_records_restart(send, args.packet)
+                verify_options_restart(send)
                 if args.packet:
                     verify_packet_restart(send, directory)
                 require_success(send("shutdown"))

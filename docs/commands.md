@@ -1,5 +1,80 @@
 # DHCPv4 configuration commands
 
+## M26: option definitions and global options
+
+These are project-specific contracts for pinned Kea 3.2.1, **not commercial
+aliases**. Eight registrations:
+
+| Family | Commands |
+| --- | --- |
+| Definitions | `cb-option-def4-list`, `cb-option-def4-get`, `cb-option-def4-set`, `cb-option-def4-del` |
+| Global options | `cb-option4-global-list`, `cb-option4-global-get`, `cb-option4-global-set`, `cb-option4-global-del` |
+
+All requests require an arguments map with `server-tag`: either `all` or an
+existing named server. No `any`, multiple tags, backend overrides or unknown
+fields are accepted. Exactly one configured PostgreSQL/MySQL backend is required.
+Native ONE reads prefer a specific row over the common fallback; ALL selects
+common configuration. Views are never combined.
+
+List accepts only `server-tag`. Other operations also require one `option-def`
+or `option` map. Identity is explicit `code` (integer 1..254) and `space`
+(valid native name, at most 128 bytes, excluding `dhcp6`). Global get/delete
+also accept `client-classes`; omission means exactly the empty class list,
+not every variant. Class order is retained, never normalized into another identity.
+
+Definition set requires `name`, `code`, `space`, `type`; optional `array`
+(boolean, default false), `record-types` (string, default empty), `encapsulate`
+(string, default empty) and `user-context` (map). Native OptionDefParser and
+CfgOptionDef validation enforce type/record/encapsulation and name/code constraints.
+Get/delete accept identity fields only. Text must contain no NUL.
+
+Global set requires `code`, `space`, `data` (string); optional `name`,
+`csv-format`, `always-send`, `never-send`, `client-classes`, `user-context`.
+Flags must be native booleans; classes must be distinct nonempty strings and
+context a map. `persistent` is not a request field: use native `always-send`.
+Unknown fields are rejected. Text is bounded to 65535 bytes and cannot contain NUL.
+
+Native OptionDataParser supplies CSV and binary encoding. CSV requires a
+selected SQL definition or native built-in/vendor/last-resort definition;
+process-global runtime definitions are deliberately excluded to prevent
+cross-selector/stale decoding. Supported examples include strings, integers,
+IPv4 addresses, address arrays, record values, hexadecimal and valid empty
+binary payloads. Binary readback may uppercase hexadecimal; payload bytes,
+rather than textual letter case, establish encoding equivalence.
+
+Example creation (requires explicit mutation admission):
+
+```json
+{"command":"cb-option-def4-set","arguments":{"server-tag":"all","option-def":{"name":"example-text","code":224,"space":"dhcp4","type":"string"}}}
+```
+
+```json
+{"command":"cb-option4-global-set","arguments":{"server-tag":"all","option":{"code":224,"space":"dhcp4","data":"example","always-send":true}}}
+```
+
+**Set is create-only.** A visible existing identity is refused even when its
+payload matches. Existing delete is also refused. Native reads hide other
+associations; whole-row mutation and limited native dependency checks cannot
+prove safe update/delete. No force or cascade is exposed. Missing delete returns
+an empty result without invoking native delete. These are essential functional
+exclusions, so M26 remains PARTIAL.
+
+Every write checks admission before parsing/backend access. Reads and refused
+requests leave native data/audit unchanged. Successful persistence does not
+activate runtime configuration; pull/reload/restart remains an explicit operator
+action. Existing exclusive-writer, uncertain-outcome and M22 recovery rules apply.
+
+Responses use result 0 for a nonempty successful view/create, 3 for empty
+list/get/missing delete, 1 for contract/admission/backend failure. Successful/empty
+arguments contain `count`, `option-defs` or `options`, `server-tag` and
+`associations-complete: false`. Mutation replies also contain
+`activation-requested: false`. Each row preserves native serialization and
+observed `server-tags`; these are incomplete selector metadata, not complete
+association ownership. Stable ordering uses space/code and native class identity.
+Safe contract errors are public; other exceptions return the generic backend
+failure asking for reconciliation before retry. No automatic retries occur.
+
+
 ## M25 server records and scalar globals
 
 These eight project-specific commands are not commercial aliases. All use the

@@ -1,5 +1,28 @@
 # Commercial parity gap analysis
 
+## M26 implementation update
+
+M26 is **PARTIAL**. Eight project-specific option callouts add selected-view
+list/get and create-only definitions/global options. Existing option updates
+and deletes are refused: native readback hides other associations, and native
+definition dependency checks do not establish safety across all scopes. Missing
+deletes return an empty result without invoking native deletion. No force or
+cascade is offered. See [contracts](commands.md) for exact schemas.
+
+Native option parsers and serializers preserve CSV, binary, numeric, string,
+address, array and record payloads. Encoding consults selected SQL definitions
+and native built-ins, excluding stale process-global runtime definitions.
+Returned server tags are observed selector metadata, with
+`associations-complete: false`; they never authorize an existing mutation.
+
+Current functional counts: **3 implemented, 15 partial, 56 missing** of 74;
+DHCPv4: 3/15/18, DHCPv6: 0/0/38. The six new partial analogues are two lists,
+two gets and two create-only sets. Both option delete operations remain missing
+functional equivalents despite their safe refusal endpoints. Exact commercial
+compatibility remains **0 implemented, 0 partial, 74 missing**; no remote names
+are registered. The M25 counts below are historical.
+
+
 ## M25 implementation update
 
 M25 is **PARTIAL**: native server list/get/create-update and a 15-name scalar

@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from smoke import require_success
+from options4 import PAYLOADS
 
 
 COOKIE = b"\x63\x82\x53\x63"
@@ -119,7 +120,8 @@ def _lease(directory, address, hardware):
         time.sleep(0.05)
 
 
-def _exchange(directory, first, last, expect_offer=True, boot_file=None):
+def _exchange(directory, first, last, expect_offer=True, boot_file=None,
+              expected_options=None, absent_options=()):
     _isolated()
     xid = secrets.randbits(32)
     hardware = b"\x02" + secrets.token_bytes(5)
@@ -139,6 +141,11 @@ def _exchange(directory, first, last, expect_offer=True, boot_file=None):
         acknowledged, options = _receive(receiver, xid, hardware, 5, boot_file=boot_file)
         assert acknowledged == address, "DHCPACK differs from DHCPOFFER"
         assert options[54] == offered[54], "DHCP server changed during DORA"
+        for message, payload in (("OFFER", offered), ("ACK", options)):
+            for code, value in (expected_options or {}).items():
+                assert payload.get(code) == value, (message, code, payload.get(code), value)
+            for code in absent_options:
+                assert code not in payload, (message, "Unexpected option", code)
     path = _lease(directory, address, hardware)
     print(f"PASS: real DISCOVER/OFFER/REQUEST/ACK, lease {address}, subnet {SUBNET_ID}, "
           "600-second active lease recorded in memfile")
@@ -216,7 +223,21 @@ def verify_dhcp(send, config, save, directory, snapshot):
         ("127.0.0.10", "127.0.0.20")]
     assert _pools(_subnets(send, "config-get")[SUBNET_ID]) == [
         ("127.0.0.10", "127.0.0.20")]
-    _exchange(directory, "127.0.0.10", "127.0.0.20")
+    _exchange(directory, "127.0.0.10", "127.0.0.20", expected_options=PAYLOADS,
+              absent_options=(246,))
+    # Persist another custom option while packets still reflect the old runtime.
+    require_success(send("cb-option-def4-set", {"server-tag": "test-server", "option-def": {
+        "name": "m26-packet", "code": 246, "space": "dhcp4", "type": "string"}}))
+    require_success(send("cb-option4-global-set", {"server-tag": "test-server", "option": {
+        "code": 246, "space": "dhcp4", "data": "after-activation", "always-send": True}}))
+    _exchange(directory, "127.0.0.10", "127.0.0.20", expected_options=PAYLOADS,
+              absent_options=(246,))
+    require_success(send("config-reload"))
+    expected = dict(PAYLOADS)
+    expected[246] = b"after-activation"
+    _exchange(directory, "127.0.0.10", "127.0.0.20", expected_options=expected)
+    print("PASS: router/DNS/domain/custom OFFER and ACK bytes; new custom option "
+          "absent until explicit activation")
 
     # A native global affects the BOOTP file only after explicit activation.
     initial_file = require_success(send("config-get"))["Dhcp4"].get("boot-file-name", "")
@@ -261,7 +282,10 @@ def verify_packet_restart(send, directory):
     """Called only after the harness has stopped and restarted the same Kea."""
     assert _pools(_subnets(send, "config-get")[SUBNET_ID]) == [
         ("127.0.0.30", "127.0.0.40")]
-    path = _exchange(directory, "127.0.0.30", "127.0.0.40", boot_file="m25-packet.efi")
+    expected = dict(PAYLOADS)
+    expected[246] = b"after-activation"
+    path = _exchange(directory, "127.0.0.30", "127.0.0.40", boot_file="m25-packet.efi",
+                     expected_options=expected)
     print("PASS: restarted Kea loads SQL pool/global values and records a fresh DHCP lease")
     before = path.read_bytes()
     time.sleep(1.1)

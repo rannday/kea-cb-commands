@@ -1,23 +1,24 @@
 # Development roadmap: commercial command parity
 
-**M25 implementation: PARTIAL.** Eight project-specific callouts add native
-server list/get/create-update and scalar-global read/create. Existing-server
-deletion is refused because native orphan cleanup cannot be proved harmless.
-Existing global update/delete is refused because native readback hides shared
-associations; compound globals and complete scalar coverage remain open. See [contracts](commands.md)
-and [current counts](compatibility-matrix.md). Existing five contracts are retained.
+**M26 implementation: PARTIAL.** Eight project-specific option callouts add
+native selected-view list/get and create-only definitions/global options.
+Existing updates/deletes are refused because complete associations and
+cross-scope dependency safety cannot be established. Native encodings and
+explicit activation are qualified in the M26 evidence; exact commercial parity
+remains zero. See [contracts](commands.md) and [counts](compatibility-matrix.md).
+All thirteen earlier command contracts are retained.
 
-**Next: M26 — DHCPv4 option definitions and global options.** Reuse the M24/M25
-helpers. Implement only names whose pinned request/response contracts are
-established; qualify option spaces/codes/types, encapsulation, definition
-dependencies and force-delete policy using native APIs. Acceptance requires
-both SQL backends and packet threading modes, restart persistence, association
-preservation, denied-write SQL snapshots, explicit activation and real packet
-option evidence. Complete global association evidence, update/delete, compound
-globals and safe server deletion remain an explicit
-backlog; they do not become silent compatibility claims or prerequisites for
-unrelated option work.
+**Next: M27 — DHCPv4 shared networks.** Reuse the existing family helpers and
+native parsers. Establish full read views, inherited options and child subnet
+membership before enabling writes. Require complete association and child
+policy evidence for update/delete; fail closed if unavailable. Qualify both
+backends/threading modes, restart, explicit activation and real shared-network
+allocation. Do not weaken existing subnet or option restrictions.
 
+Outstanding association observability, option replacement/deletion, dependency
+checks, server deletion and compound globals remain explicit functional gaps.
+They require their own review and evidence; no implicit force/cascade or
+commercial compatibility claim follows from a native method's availability.
 
 **M22 status: PARTIAL.** The [evidence collector](reconciliation-evidence.md)
 and [durable recovery gate](operator-recovery.md) are implemented in test tooling.
@@ -224,6 +225,11 @@ global behavior after explicit activation. Unsupported JSON-only settings fail
 clearly; no arbitrary whole-server storage.
 
 ### M26 — DHCPv4 option definitions and global options
+
+**M26 outcome: PARTIAL.** Eight project-specific callouts implement reads and
+fresh creation. Existing update/delete remains excluded; native selector reads
+hide associations and dependency checks do not establish all-scope safety.
+The original qualification target follows; unresolved items remain backlog.
 
 Depends on M25. Deliver definitions then global options (8 commands); resolve
 U5 force/dependency checks and U7 class-tag identity. Acceptance includes
