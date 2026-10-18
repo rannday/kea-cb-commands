@@ -20,6 +20,14 @@ int subnet4Get(isc::hooks::CalloutHandle& handle);
 int subnet4Del(isc::hooks::CalloutHandle& handle);
 int subnet4Set(isc::hooks::CalloutHandle& handle);
 
+int server4List(isc::hooks::CalloutHandle& handle);
+int server4Get(isc::hooks::CalloutHandle& handle);
+int server4Set(isc::hooks::CalloutHandle& handle);
+int server4Del(isc::hooks::CalloutHandle& handle);
+int global4List(isc::hooks::CalloutHandle& handle);
+int global4Get(isc::hooks::CalloutHandle& handle);
+int global4Set(isc::hooks::CalloutHandle& handle);
+int global4Del(isc::hooks::CalloutHandle& handle);
 } // namespace kea_db_commands
 
 #endif

@@ -73,6 +73,14 @@ DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
         handle.registerCommandCallout("cb-subnet4-get", subnet4Get);
         handle.registerCommandCallout("cb-subnet4-del", subnet4Del);
         handle.registerCommandCallout("cb-subnet4-set", subnet4Set);
+        handle.registerCommandCallout("cb-server4-list", server4List);
+        handle.registerCommandCallout("cb-server4-get", server4Get);
+        handle.registerCommandCallout("cb-server4-set", server4Set);
+        handle.registerCommandCallout("cb-server4-del", server4Del);
+        handle.registerCommandCallout("cb-global-parameter4-list", global4List);
+        handle.registerCommandCallout("cb-global-parameter4-get", global4Get);
+        handle.registerCommandCallout("cb-global-parameter4-set", global4Set);
+        handle.registerCommandCallout("cb-global-parameter4-del", global4Del);
         LOG_INFO(logger, "DB_COMMANDS_LOADED");
         allow_mutations = requested;
         return 0;

@@ -1,5 +1,24 @@
 # Development roadmap: commercial command parity
 
+**M25 implementation: PARTIAL.** Eight project-specific callouts add native
+server list/get/create-update and scalar-global read/create. Existing-server
+deletion is refused because native orphan cleanup cannot be proved harmless.
+Existing global update/delete is refused because native readback hides shared
+associations; compound globals and complete scalar coverage remain open. See [contracts](commands.md)
+and [current counts](compatibility-matrix.md). Existing five contracts are retained.
+
+**Next: M26 — DHCPv4 option definitions and global options.** Reuse the M24/M25
+helpers. Implement only names whose pinned request/response contracts are
+established; qualify option spaces/codes/types, encapsulation, definition
+dependencies and force-delete policy using native APIs. Acceptance requires
+both SQL backends and packet threading modes, restart persistence, association
+preservation, denied-write SQL snapshots, explicit activation and real packet
+option evidence. Complete global association evidence, update/delete, compound
+globals and safe server deletion remain an explicit
+backlog; they do not become silent compatibility claims or prerequisites for
+unrelated option work.
+
+
 **M22 status: PARTIAL.** The [evidence collector](reconciliation-evidence.md)
 and [durable recovery gate](operator-recovery.md) are implemented in test tooling.
 Incomplete evidence blocks mutation and promotion across both SQL backends and

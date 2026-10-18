@@ -16,17 +16,27 @@ from control import command
 
 DIAGNOSTIC = "db-commands-diagnostic"
 SUBNET_LIST = "cb-subnet4-list"
+RECORD_COMMANDS = tuple(
+    f"cb-{family}4-{operation}"
+    for family in ("server", "global-parameter")
+    for operation in ("list", "get", "set", "del")
+)
 ADMISSION_ERROR = {"result": 1, "text": (
     "Mutations are disabled; configure allow-mutations: true on the "
     "designated administrative writer.")}
 
 
 def verify_denied(send):
-    """Both mutation entry points reject even malformed input before backend access."""
+    """All mutation entry points reject malformed input before backend access."""
     mutations = {
         "cb-subnet4-set": {"server-tag": "all", "subnet4": {
             "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}},
         "cb-subnet4-del": {"id": 900, "server-tag": "all", "preserve-leases": True},
+        "cb-server4-set": {"server-tag": "test-server", "description": "test"},
+        "cb-server4-del": {"server-tag": "test-server"},
+        "cb-global-parameter4-set": {
+            "server-tag": "all", "name": "authoritative", "value": False},
+        "cb-global-parameter4-del": {"server-tag": "all", "name": "authoritative"},
     }
     for name, valid in mutations.items():
         for arguments in (valid, None, {}, [], False, 1, "invalid", {"unexpected": True}):
@@ -112,6 +122,27 @@ def verify_argument_contracts(send):
     for arguments in (None, {}):
         assert send(SUBNET_LIST, arguments) == {
             "result": 1, "text": "No configuration backend is configured."}
+
+    backend_error = {"result": 1, "text": "Exactly one SQL configuration backend is required."}
+    for name, arguments in (
+        ("cb-server4-list", None), ("cb-server4-list", {}),
+        ("cb-server4-get", {"server-tag": "test-server"}),
+        ("cb-server4-set", {"server-tag": "test-server", "description": ""}),
+        ("cb-server4-del", {"server-tag": "test-server"}),
+        ("cb-global-parameter4-list", {"server-tag": "all"}),
+        ("cb-global-parameter4-get", {"server-tag": "all", "name": "authoritative"}),
+        ("cb-global-parameter4-set", {
+            "server-tag": "all", "name": "authoritative", "value": False}),
+        ("cb-global-parameter4-del", {"server-tag": "all", "name": "authoritative"}),
+    ):
+        assert send(name, arguments) == backend_error, (name, arguments)
+    for name in RECORD_COMMANDS:
+        for arguments in ([], False, 1, "invalid", {"unexpected": True}):
+            assert send(name, arguments)["result"] == 1, (name, arguments)
+    for name, value in (("authoritative", 1), ("renew-timer", True),
+                        ("boot-file-name", []), ("dhcp-ddns", {})):
+        assert send("cb-global-parameter4-set", {
+            "server-tag": "all", "name": name, "value": value})["result"] == 1
 
 
 def run_case(server, hook, directory, multithreading, *, mutation_admission=True):
@@ -211,6 +242,7 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
             assert "cb-subnet4-set" in names
             assert not any(name.startswith("remote-") for name in names)
             if mutation_admission:
+                assert set(RECORD_COMMANDS) <= set(names), names
                 verify_denied(send)
                 config["Dhcp4"]["hooks-libraries"][0]["parameters"] = {"allow-mutations": True}
                 save()
@@ -251,6 +283,10 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
             save()
             require_success(send("config-reload"))
             assert "cb-subnet4-set" not in require_success(send("list-commands"))
+            if mutation_admission:
+                for name in RECORD_COMMANDS:
+                    assert name not in require_success(send("list-commands"))
+                    assert send(name)["result"] == 2
             for name in ("cb-subnet4-get", "cb-subnet4-del"):
                 assert name not in require_success(send("list-commands"))
                 assert send(name)["result"] == 2

@@ -58,7 +58,8 @@ add_library(kea_db_commands MODULE
     src/diagnostic.cc
     src/commands.cc
     src/arguments.cc
-    src/subnet4.cc)
+    src/subnet4.cc
+    src/records4.cc)
 set_target_properties(kea_db_commands PROPERTIES
     OUTPUT_NAME dhcp_db_commands
     CXX_VISIBILITY_PRESET hidden

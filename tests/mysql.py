@@ -17,6 +17,7 @@ from pathlib import Path
 
 from mutation import configure_admission, request, verify_mutations
 from lifecycle import verify_lifecycle
+from records4 import verify_records, verify_records_restart
 from concurrency import verify_multiprocess
 from dhcp import _isolated, verify_dhcp, verify_packet_restart
 from control import command
@@ -472,6 +473,7 @@ def run_case(args, directory, multithreading):
                     verify_mutations(send, snapshot, sql, config, save,
                                      deny_association, restore_privileges)
                     verify_lifecycle(send, snapshot, sql, config, save)
+                    verify_records(send, snapshot, sql, config, save)
                     if args.multiprocess:
                         verify_multiprocess(
                             args, directory, config, environment, authorization, send, sql,
@@ -500,6 +502,7 @@ def run_case(args, directory, multithreading):
                         except (OSError, ValueError):
                             assert kea_process.poll() is None and time.monotonic() < deadline
                             time.sleep(0.1)
+                    verify_records_restart(send, args.packet)
                     if args.packet:
                         verify_packet_restart(send, directory)
                     require_success(send("shutdown"))

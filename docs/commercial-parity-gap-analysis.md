@@ -1,5 +1,43 @@
 # Commercial parity gap analysis
 
+## M25 implementation update
+
+M25 is **PARTIAL**: native server list/get/create-update and a 15-name scalar
+global read/create subset are implemented under eight project-specific callouts,
+including fail-closed existing-server/global delete endpoints. See [exact contracts](commands.md).
+No commercial command is registered. Commercial object envelopes, batches,
+metadata, description omission and unspecified errors remain unverified.
+
+Native `getAllServers4/getServer4/createUpdateServer4` and
+`getAllGlobalParameters4/getGlobalParameter4/createUpdateGlobalParameter4`
+operate through the existing pool and selector helpers. No private manager or
+SQL abstraction was added. Existing-server delete is excluded: both native
+drivers' `deleteServer4` call `purgeUnassignedConfig`, which can delete
+unrelated orphan globals/options/definitions. Native read views cannot prove
+those sets empty. Tests verify refusal preserves SQL and associations; native
+destructive cascade execution is not claimed.
+
+Existing global update/delete is also excluded. Native global queries filter
+associations and collapse rows: a shared row can appear to belong to just one
+tag, and a mixed all/named association can appear common-only. Native mutations
+affect whole rows. Without complete association evidence, set only creates when
+the selected view is empty; delete only reports a missing value. Disposable SQL
+tests construct both shared cases and verify refusal without SQL/audit changes.
+Returned tags describe the selected view, not complete row ownership.
+
+Compound globals remain unresolved (U2). `StampedValue::getValue` supports
+scalars; map serialization fails, while null/list construction fails. Native
+controller dotted-name expansion and special list decoding need separate
+per-name contracts. M25 rejects these inputs rather than changing their types.
+Full scalar coverage and cross-parameter activation validation also remain open.
+
+Functional counts are 3 implemented, 9 partial, 62 missing out of 74;
+exact commercial counts remain 0 implemented, 0 partial, 74 missing.
+Six partials are historical subnet analogues; three are restricted globals.
+Server/global delete remain missing despite their refusal endpoints. M22 remains PARTIAL;
+durable recovery tooling, external fencing and upstream SQL cleanup are unchanged.
+
+
 ## Decision
 
 **M23 is PARTIAL.** All 74 documented cb_cmds command names are inventoried
@@ -13,7 +51,10 @@ features in the [revised roadmap](development-roadmap.md), while deployment
 hardening continues independently. No production command, registration,
 transaction behavior or safety check changes in this milestone.
 
-## Actual starting point
+## M23 starting point (historical)
+
+The following inventory records the pre-M24/M25 baseline. The M25 update above
+supersedes its server/global and registration counts.
 
 Reviewed production files: `src/diagnostic.cc`, `commands.cc/.h`,
 `arguments.cc/.h`, `subnet4.cc/.h` and CMake registration/build probes.

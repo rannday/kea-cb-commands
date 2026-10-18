@@ -1,8 +1,9 @@
 # Kea Database Commands
 
-An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets in ISC Kea's
-SQL configuration backend. It targets **unmodified Kea 3.2.1 on Linux** and uses
-Kea's native PostgreSQL and MySQL/MariaDB backend APIs and schema. It requires
+An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets, server records
+and selected global parameters in ISC Kea's SQL configuration backend. It targets
+**unmodified Kea 3.2.1 on Linux** and uses Kea's native PostgreSQL and
+MySQL/MariaDB backend APIs and schema. It requires
 no custom Kea distribution, proprietary hooks or Docker.
 
 PostgreSQL 18 and MariaDB 12.3 LTS are the current
@@ -18,15 +19,18 @@ ISC's commercial configuration-backend hook. The Kea 3.2.1
 [command matrix](docs/compatibility-matrix.md) inventories 74 documented commands
 (36 IPv4, 38 IPv6); none of those remote commands is implemented today.
 M23 is **PARTIAL** because public contract contradictions and unspecified errors
-remain. Six commands have limited functional analogues in the existing subnet
-interface.
+remain. M25 adds three functional server operations and three partial scalar-global
+analogues alongside the six partial subnet analogues. Existing-server deletion
+is refused because native orphan cleanup cannot be verified safe. Existing
+global updates/deletes are refused because native readback hides associations;
+global set currently creates only when the selected native view is empty.
 
 See the [gap analysis](docs/commercial-parity-gap-analysis.md),
 [shared architecture](docs/command-architecture.md) and
 [feature roadmap](docs/development-roadmap.md). M24 extracts shared request,
 response and typed backend helpers and adds an isolated DHCPv6 API compile/link
-probe. Production command registrations and existing contracts are unchanged;
-DHCPv6 daemon loading and configuration operations remain unimplemented.
+probe. M25 adds eight project-specific callouts using those helpers; existing
+contracts are unchanged. DHCPv6 daemon loading and operations remain unimplemented.
 
 ## Reconciliation and recovery
 
@@ -42,6 +46,10 @@ unchanged.
 
 | Command | Purpose |
 | --- | --- |
+| `cb-server4-list`, `cb-server4-get` | Read native server records |
+| `cb-server4-set` | Create/update a server description |
+| `cb-server4-del` | Report missing records; refuse existing-record deletion |
+| `cb-global-parameter4-list/get/set/del` | Read selected globals; create bounded scalars; refuse existing update/delete |
 | `cb-subnet4-list` | List native subnet configuration; accepts absent or empty arguments |
 | `cb-subnet4-get` | Retrieve one subnet by ID or canonical IPv4 prefix |
 | `cb-subnet4-set` | Persist one minimal standalone subnet and optional basic address pools |

@@ -1,10 +1,115 @@
-# DHCPv4 subnet lifecycle commands
+# DHCPv4 configuration commands
+
+## M25 server records and scalar globals
+
+These eight project-specific commands are not commercial aliases. All use the
+sole configured native SQL backend; no request chooses another backend. Writes
+require explicit mutation admission before parsing and never request activation.
+Apply the [recovery procedure](operator-recovery.md) before further writes after
+an uncertain outcome. Native exceptions return result 1 and the generic text
+`Configuration backend operation failed; reconcile persisted state before retrying.`
+Validation errors use result 1 and public contract text; no SQL error is exposed.
+Successful nonempty results use 0; empty/missing results use 3. Unknown fields
+and incorrect types are rejected. Each admitted mutation invokes one native
+write operation; refused and missing-delete requests perform none.
+
+### Server records
+
+| Command | Exact arguments |
+| --- | --- |
+| `cb-server4-list` | absent or empty map |
+| `cb-server4-get` | `{"server-tag":"example"}` |
+| `cb-server4-set` | `{"server-tag":"example","description":"operator description"}` |
+| `cb-server4-del` | `{"server-tag":"example"}` |
+
+Tags must already be canonical lowercase, without surrounding whitespace, at
+most 256 characters, nonempty and without NUL. Reserved `all` and `any` cannot
+identify records. Description is required, string, at most 65536 bytes and
+without NUL; an empty description is allowed. Set creates or updates the
+identified record, preserving other records and existing associations.
+
+Arguments in replies contain `count` and `servers`, a list of native
+`{"server-tag":...,"description":...}` objects sorted by tag. Set/delete add
+`"activation-requested":false`. Native list excludes the logical all record.
+Success text is `DHCPv4 server records retrieved.`; empty text is
+`DHCPv4 server record not found.`
+
+**Existing-record deletion is excluded.** It returns result 1 with exactly
+`Server deletion is unsupported: native orphan cleanup cannot be verified safe.`
+A missing record returns result 3, count 0 and an empty servers list.
+No native delete is invoked. Native deletion in both pinned drivers purges
+unassigned global parameters, option definitions and global options, including
+orphans unrelated to the requested server. Native read APIs cannot enumerate
+all those orphan sets to prove cleanup harmless. Association detachment and
+client-class restrictions also need wider qualification. Use no manual
+acknowledgement to bypass this refusal.
+
+### Global parameters
+
+| Command | Exact arguments |
+| --- | --- |
+| `cb-global-parameter4-list` | `{"server-tag":"example"}` |
+| `cb-global-parameter4-get` | `{"server-tag":"example","name":"authoritative"}` |
+| `cb-global-parameter4-set` | `{"server-tag":"example","name":"authoritative","value":false}` |
+| `cb-global-parameter4-del` | `{"server-tag":"example","name":"authoritative"}` |
+
+A named server must exist; logical `all` selects common configuration. Other
+tag validation matches server commands. Named reads include common fallback.
+No ANY, UNASSIGNED, multiple-tag or batch-write interface is provided. Tags
+remain associations, not independent mutation namespaces.
+
+**Set currently creates only when the selected native view is empty. Existing
+global update/delete is excluded.** Both return result 1 with exactly
+`Global mutation is unsupported for existing values: native readback cannot verify complete associations.`
+This includes common fallback. Missing delete returns result 3 and performs no
+native write. Native reads filter associations and collapse common/explicit
+rows; a single returned tag cannot prove exclusive ownership. Native SQL
+update/delete affects whole rows and could change other associations. Even
+an apparently single-association existing value is therefore refused. Repeated
+set is also refused; no idempotent update claim is made.
+
+Get/set/delete accept this bounded name/type table:
+
+| Names | Native JSON type and limits |
+| --- | --- |
+| valid-lifetime, min-valid-lifetime, max-valid-lifetime | Integer, 1..4294967295 |
+| renew-timer, rebind-timer, decline-probation-period | Integer, 0..4294967295 |
+| echo-client-id, match-client-id, authoritative, calculate-tee-times | Boolean |
+| t1-percent, t2-percent | Real, finite and strictly between 0 and 1 |
+| next-server | String containing an IPv4 address, at most 63 bytes |
+| server-hostname | String, at most 63 bytes |
+| boot-file-name | String, at most 127 bytes |
+
+Strings reject NUL. Integer and real types are distinct: use `0.4`, not `1`,
+for a percentage. No map, list, null, dotted name or arbitrary JSON setting is
+accepted. Cross-parameter relationships and consumer inheritance still require
+explicit activation validation; a successful SQL write does not prove an
+activatable or converged consumer configuration.
+
+Reply arguments contain `count`, `parameters` and the requested `server-tag`.
+Each row is `{"name":...,"value":...,"server-tags":[...]}`; tags are the
+associations observable in the selected native view, including `all` on
+fallback. **They are not a complete association inventory.** Native filtering
+can hide additional associations and collapse same-name rows before the hook
+receives them. Rows are sorted by name; any duplicate names still exposed fail
+closed. List preserves native observed names/values, including names unsupported
+by get/set/delete. Missing delete returns an empty parameters list and count 0.
+Set/delete add `"activation-requested":false`. All non-error replies use
+`DHCPv4 global parameter operation completed.` as text.
+
+This representation preserves native scalar JSON types. The pinned
+`StampedValue` serializer does not support arbitrary compound values: maps
+accepted by its constructor fail string serialization; list/null are rejected.
+The controller reconstructs some dotted globals and specially encoded lists,
+but this is not a general JSON round trip. Compound support remains unresolved,
+as recorded in the [matrix](compatibility-matrix.md). No flattening is attempted.
+
 
 ## Mutation admission (current development version)
 
-`cb-subnet4-set` and `cb-subnet4-del` require the hook-library parameter
+All set/delete commands, including the M25 server/global families, require the hook-library parameter
 `"allow-mutations": true`. Omission, an empty parameters map or explicit false
-denies both commands before argument validation or any backend access. Commands
+denies these commands before argument validation or any backend access. Commands
 remain registered. Denial returns exactly:
 
 ```json
@@ -332,7 +437,7 @@ empty lists, validation and late-failure rollback. Opt-in `postgresql_dhcp` and
 `mysql_dhcp` add real packet checks in both threading modes. Both engines passed
 these checks; see [the verification record](pools.md) for scope and limitations.
 
-Options, classes, shared networks, server creation/retagging, DHCPv6,
+Options, classes, shared networks, server retagging, DHCPv6,
 batch writes, optimistic concurrency, automatic activation, production load and
 mixed-release compatibility remain unimplemented or unverified as applicable.
 

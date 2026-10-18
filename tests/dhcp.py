@@ -45,13 +45,15 @@ def _packet(message, xid, hardware, requested=None, server=None):
     return (header + COOKIE + options).ljust(300, b"\0")
 
 
-def _response(data, xid, hardware, expected):
+def _response(data, xid, hardware, expected, boot_file=None):
     assert len(data) >= 240, "Truncated DHCP reply"
     assert data[0:3] == bytes((2, 1, 6)), "Invalid BOOTP reply"
     assert struct.unpack_from("!I", data, 4)[0] == xid, "Wrong transaction ID"
     assert data[28:34] == hardware, "Wrong client hardware address"
     assert data[24:28] == socket.inet_aton(RELAY), "Wrong relay address"
     assert data[236:240] == COOKIE, "Invalid DHCP magic cookie"
+    if boot_file is not None:
+        assert data[108:236].rstrip(b"\0") == boot_file.encode(), "Wrong BOOTP file"
     options = {}
     cursor = 240
     ended = False
@@ -78,7 +80,7 @@ def _response(data, xid, hardware, expected):
     return socket.inet_ntoa(data[16:20]), options
 
 
-def _receive(receiver, xid, hardware, expected, timeout=3):
+def _receive(receiver, xid, hardware, expected, timeout=3, boot_file=None):
     deadline = time.monotonic() + timeout
     while True:
         remaining = deadline - time.monotonic()
@@ -91,7 +93,7 @@ def _receive(receiver, xid, hardware, expected, timeout=3):
         if len(data) >= 8 and struct.unpack_from("!I", data, 4)[0] != xid:
             continue
         assert source == SERVER, "DHCP reply came from an unexpected endpoint"
-        return _response(data, xid, hardware, expected)
+        return _response(data, xid, hardware, expected, boot_file)
 
 
 def _lease(directory, address, hardware):
@@ -117,7 +119,7 @@ def _lease(directory, address, hardware):
         time.sleep(0.05)
 
 
-def _exchange(directory, first, last, expect_offer=True):
+def _exchange(directory, first, last, expect_offer=True, boot_file=None):
     _isolated()
     xid = secrets.randbits(32)
     hardware = b"\x02" + secrets.token_bytes(5)
@@ -130,11 +132,11 @@ def _exchange(directory, first, last, expect_offer=True):
             except socket.timeout:
                 return None
             raise AssertionError("Kea offered a lease before activation or with no pools")
-        address, offered = _receive(receiver, xid, hardware, 2)
+        address, offered = _receive(receiver, xid, hardware, 2, boot_file=boot_file)
         assert ipaddress.IPv4Address(first) <= ipaddress.IPv4Address(address) <= (
             ipaddress.IPv4Address(last)), "DHCPOFFER address is outside the SQL-managed pool"
         receiver.sendto(_packet(3, xid, hardware, address, offered[54]), SERVER)
-        acknowledged, options = _receive(receiver, xid, hardware, 5)
+        acknowledged, options = _receive(receiver, xid, hardware, 5, boot_file=boot_file)
         assert acknowledged == address, "DHCPACK differs from DHCPOFFER"
         assert options[54] == offered[54], "DHCP server changed during DORA"
     path = _lease(directory, address, hardware)
@@ -216,6 +218,22 @@ def verify_dhcp(send, config, save, directory, snapshot):
         ("127.0.0.10", "127.0.0.20")]
     _exchange(directory, "127.0.0.10", "127.0.0.20")
 
+    # A native global affects the BOOTP file only after explicit activation.
+    initial_file = require_success(send("config-get"))["Dhcp4"].get("boot-file-name", "")
+    require_success(send("cb-global-parameter4-set", {
+        "server-tag": "test-server", "name": "boot-file-name", "value": "m25-packet.efi"}))
+    assert require_success(send("config-get"))["Dhcp4"].get("boot-file-name", "") == initial_file
+    _exchange(directory, "127.0.0.10", "127.0.0.20", boot_file=initial_file)
+    require_success(send("config-reload"))
+    assert require_success(send("config-get"))["Dhcp4"]["boot-file-name"] == "m25-packet.efi"
+    _exchange(directory, "127.0.0.10", "127.0.0.20", boot_file="m25-packet.efi")
+    refused = send("cb-global-parameter4-del", {
+        "server-tag": "test-server", "name": "boot-file-name"})
+    assert refused["result"] == 1, refused
+    _exchange(directory, "127.0.0.10", "127.0.0.20", boot_file="m25-packet.efi")
+    print("PASS: persisted global boot-file-name changes actual OFFER/ACK only after activation; "
+          "unsafe deletion is refused")
+
     # Pool replacement changes backend visibility first, then runtime on pull.
     time.sleep(1.1)
     persist("127.0.0.30", "127.0.0.40")
@@ -243,8 +261,8 @@ def verify_packet_restart(send, directory):
     """Called only after the harness has stopped and restarted the same Kea."""
     assert _pools(_subnets(send, "config-get")[SUBNET_ID]) == [
         ("127.0.0.30", "127.0.0.40")]
-    path = _exchange(directory, "127.0.0.30", "127.0.0.40")
-    print("PASS: restarted Kea loads SQL pool replacement and records a fresh DHCP lease")
+    path = _exchange(directory, "127.0.0.30", "127.0.0.40", boot_file="m25-packet.efi")
+    print("PASS: restarted Kea loads SQL pool/global values and records a fresh DHCP lease")
     before = path.read_bytes()
     time.sleep(1.1)
     response = require_success(send("cb-subnet4-del", {

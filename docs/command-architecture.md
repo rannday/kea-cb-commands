@@ -9,13 +9,19 @@ families remain proposals until their implementation milestones. The
 ## Current architecture
 
 One CMake MODULE exports the Kea lifecycle functions. `src/diagnostic.cc`
-registers five IPv4-only commands; `commands.cc` retains command-specific replies
+registers thirteen IPv4-only commands; `commands.cc` retains command-specific replies
 and explicit mutation admission. Header-only `command_support.h` shares request
 extraction, required/optional field checks, safe errors and response publication.
 `backend_support.h` shares typed per-invocation manager access, single-backend
 selection and server selectors. `arguments.cc` validates minimal subnet/pool
 requests; `subnet4.cc` retains native CRUD and subnet safety policy.
-The native manager is resolved per invocation, with exactly one backend.
+`records4.cc` contains the M25 server/scalar-global handlers using the same
+request, exception and backend helpers. Mutation admission is explicit at each
+family's set/delete boundary. The native manager is resolved per invocation,
+with exactly one backend. Global set only creates an absent selected value;
+existing update/delete is refused because native readback cannot enumerate
+complete associations. Existing-server deletion is also refused because native
+cleanup can purge unrelated orphans. These are explicit coverage gaps.
 Exceptions are contained, mutations default to denied, and persistence does
 not activate consumers. These are useful foundations, but the minimal object
 builder and common replies cannot implement the full commercial interface.
@@ -26,7 +32,8 @@ SQL layer, configuration store, controller service or universal CRUD framework.
 
 ## Registration and lifecycle
 
-M24 retains the five explicit registrations. When additional families justify
+M24 retained five explicit registrations. M25 adds eight explicit project-specific
+registrations in the same lifecycle boundary. When additional families justify
 it, use a small static descriptor table containing command name, DHCP family,
 read/mutation classification and callout pointer. Register only implemented,
 qualified commands. Keep the existing five names and request/response behavior.

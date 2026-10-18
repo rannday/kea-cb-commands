@@ -1,10 +1,49 @@
 # Commercial command compatibility matrix
 
+## M25 implementation update
+
+M25 is **PARTIAL**: native server list/get/create-update and a 15-name scalar
+global read/create subset are implemented under eight project-specific callouts,
+including fail-closed existing-server/global delete endpoints. See [exact contracts](commands.md).
+No commercial command is registered. Commercial object envelopes, batches,
+metadata, description omission and unspecified errors remain unverified.
+
+Native `getAllServers4/getServer4/createUpdateServer4` and
+`getAllGlobalParameters4/getGlobalParameter4/createUpdateGlobalParameter4`
+operate through the existing pool and selector helpers. No private manager or
+SQL abstraction was added. Existing-server delete is excluded: both native
+drivers' `deleteServer4` call `purgeUnassignedConfig`, which can delete
+unrelated orphan globals/options/definitions. Native read views cannot prove
+those sets empty. Tests verify refusal preserves SQL and associations; native
+destructive cascade execution is not claimed.
+
+Existing global update/delete is also excluded. Native global queries filter
+associations and collapse rows: a shared row can appear to belong to just one
+tag, and a mixed all/named association can appear common-only. Native mutations
+affect whole rows. Without complete association evidence, set only creates when
+the selected view is empty; delete only reports a missing value. Disposable SQL
+tests construct both shared cases and verify refusal without SQL/audit changes.
+Returned tags describe the selected view, not complete row ownership.
+
+Compound globals remain unresolved (U2). `StampedValue::getValue` supports
+scalars; map serialization fails, while null/list construction fails. Native
+controller dotted-name expansion and special list decoding need separate
+per-name contracts. M25 rejects these inputs rather than changing their types.
+Full scalar coverage and cross-parameter activation validation also remain open.
+
+Functional counts are 3 implemented, 9 partial, 62 missing out of 74;
+exact commercial counts remain 0 implemented, 0 partial, 74 missing.
+Six partials are historical subnet analogues; three are restricted globals.
+Server/global delete remain missing despite their refusal endpoints. M22 remains PARTIAL;
+durable recovery tooling, external fencing and upstream SQL cleanup are unchanged.
+
+
 ## Baseline and evidence
 
 **M23 status: PARTIAL.** The command inventory is complete; public contract
 contradictions and unspecified error behavior prevent an exact compatibility
-claim. This is a plan, not implementation or commercial runtime verification.
+claim. The M25 implementation update above records functional analogues only;
+no commercial runtime verification or remote registration is claimed.
 
 The target is **ISC Kea 3.2.1**, tag `Kea-3.2.1`, commit
 `1737462bc79276e3269304ea8cd3d1c03400e30d` from
@@ -27,11 +66,11 @@ Context7 returned master documentation; it is excluded from the pinned baseline.
 | Counting basis | Implemented | Partial | Missing | Total |
 | --- | --- | --- | --- | --- |
 | Exact commercial command interface | 0 | 0 | 74 | 74 |
-| Functional analogues in existing commands | 0 | 6 | 68 | 74 |
-| DHCPv4 functional analogues | 0 | 6 | 30 | 36 |
+| Functional analogues in existing commands | 3 | 9 | 62 | 74 |
+| DHCPv4 functional analogues | 3 | 9 | 24 | 36 |
 | DHCPv6 functional analogues | 0 | 0 | 38 | 38 |
 
-The six partial analogues are the v4 subnet list, get-by-id, get-by-prefix, set,
+Six of the nine partial analogues are the v4 subnet list, get-by-id, get-by-prefix, set,
 del-by-id and del-by-prefix operations. They share four existing `cb-subnet4-*`
 commands; they are neither six registered commands nor compatible aliases.
 The diagnostic is outside the commercial inventory.
@@ -214,10 +253,10 @@ dependencies, validation and create/replace/delete semantics.
 | [`remote-class6-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class6-get-all.json) | v6 | CL; L | `client-classes`, `count` | `getAllClientClasses6` | Missing: schema, native handler and qualification; U3/U4 |
 | [`remote-class6-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class6-get.json) | v6 | CL; N | `client-classes`, `count` | `getClientClass6` | Missing: schema, native handler and qualification; U3/U4 |
 | [`remote-class6-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class6-set.json) | v6 | CL; W | `client-classes` | `createUpdateClientClass6` | Missing: schema, native handler and qualification; U3/U4 |
-| [`remote-global-parameter4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter4-del.json) | v4 | GP; S | `count` | `deleteGlobalParameter4` | Missing: schema, native handler and qualification; U2 |
-| [`remote-global-parameter4-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter4-get-all.json) | v4 | GP; S | `parameters`, `count` | `getAllGlobalParameters4` | Missing: schema, native handler and qualification; U2 |
-| [`remote-global-parameter4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter4-get.json) | v4 | GP; S | `parameters`, `count` | `getGlobalParameter4` | Missing: schema, native handler and qualification; U2 |
-| [`remote-global-parameter4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter4-set.json) | v4 | GP; S | `parameters`, `count` | `createUpdateGlobalParameter4` | Missing: schema, native handler and qualification; U2 |
+| [`remote-global-parameter4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter4-del.json) | v4 | GP; S | `count` | `deleteGlobalParameter4` | Missing: cb-global-parameter4-del refuses existing values; complete associations unobservable; U1/U2 |
+| [`remote-global-parameter4-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter4-get-all.json) | v4 | GP; S | `parameters`, `count` | `getAllGlobalParameters4` | Partial: cb-global-parameter4-list; scalar subset/different schema; U1/U2 |
+| [`remote-global-parameter4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter4-get.json) | v4 | GP; S | `parameters`, `count` | `getGlobalParameter4` | Partial: cb-global-parameter4-get; scalar subset/different schema; U1/U2 |
+| [`remote-global-parameter4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter4-set.json) | v4 | GP; S | `parameters`, `count` | `createUpdateGlobalParameter4` | Partial: cb-global-parameter4-set creates only; existing updates refused; scalar subset/different schema; U1/U2 |
 | [`remote-global-parameter6-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter6-del.json) | v6 | GP; S | `count` | `deleteGlobalParameter6` | Missing: schema, native handler and qualification; U2 |
 | [`remote-global-parameter6-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter6-get-all.json) | v6 | GP; S | `parameters`, `count` | `getAllGlobalParameters6` | Missing: schema, native handler and qualification; U2 |
 | [`remote-global-parameter6-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-global-parameter6-get.json) | v6 | GP; S | `parameters`, `count` | `getGlobalParameter6` | Missing: schema, native handler and qualification; U2 |
@@ -260,10 +299,10 @@ dependencies, validation and create/replace/delete semantics.
 | [`remote-option6-pool-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option6-pool-set.json) | v6 | OS; N | `options` | `createUpdateOption6 (address range)` | Missing: schema, native handler and qualification; U6 |
 | [`remote-option6-subnet-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option6-subnet-del.json) | v6 | OS; N | `count` | `deleteOption6 (subnet ID)` | Missing: schema, native handler and qualification; U6 |
 | [`remote-option6-subnet-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option6-subnet-set.json) | v6 | OS; N | `options` | `createUpdateOption6 (subnet ID)` | Missing: schema, native handler and qualification; U6 |
-| [`remote-server4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server4-del.json) | v4 | SV; N | `count` | `deleteServer4` | Missing: schema, native handler and qualification; U6 |
-| [`remote-server4-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server4-get-all.json) | v4 | SV; N | `servers`, `count` | `getAllServers4` | Missing: schema, native handler and qualification; U6 |
-| [`remote-server4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server4-get.json) | v4 | SV; N | `servers`, `count` | `getServer4` | Missing: schema, native handler and qualification; U6 |
-| [`remote-server4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server4-set.json) | v4 | SV; N | `servers` | `createUpdateServer4` | Missing: schema, native handler and qualification; U6 |
+| [`remote-server4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server4-del.json) | v4 | SV; N | `count` | `deleteServer4` | Missing: cb-server4-del refuses existing records; native orphan purge unsafe; U6 |
+| [`remote-server4-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server4-get-all.json) | v4 | SV; N | `servers`, `count` | `getAllServers4` | Implemented functional analogue: cb-server4-list; different schema, no exact compatibility; U1/U6 |
+| [`remote-server4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server4-get.json) | v4 | SV; N | `servers`, `count` | `getServer4` | Implemented functional analogue: cb-server4-get; different schema, no exact compatibility; U1/U6 |
+| [`remote-server4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server4-set.json) | v4 | SV; N | `servers` | `createUpdateServer4` | Implemented functional analogue: cb-server4-set; different schema, no exact compatibility; U1/U6 |
 | [`remote-server6-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server6-del.json) | v6 | SV; N | `count` | `deleteServer6` | Missing: schema, native handler and qualification; U6 |
 | [`remote-server6-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server6-get-all.json) | v6 | SV; N | `servers`, `count` | `getAllServers6` | Missing: schema, native handler and qualification; U6 |
 | [`remote-server6-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-server6-get.json) | v6 | SV; N | `servers`, `count` | `getServer6` | Missing: schema, native handler and qualification; U6 |
