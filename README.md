@@ -23,8 +23,10 @@ interface.
 
 See the [gap analysis](docs/commercial-parity-gap-analysis.md),
 [shared architecture](docs/command-architecture.md) and
-[feature roadmap](docs/development-roadmap.md). M24 proposes shared command
-infrastructure; production commands and existing contracts are unchanged.
+[feature roadmap](docs/development-roadmap.md). M24 extracts shared request,
+response and typed backend helpers and adds an isolated DHCPv6 API compile/link
+probe. Production command registrations and existing contracts are unchanged;
+DHCPv6 daemon loading and configuration operations remain unimplemented.
 
 ## Reconciliation and recovery
 

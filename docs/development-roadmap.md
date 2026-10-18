@@ -184,13 +184,15 @@ before registering commercial names. Evidence: `build/milestone23/checks.md`.
 
 ### M24 — Shared command infrastructure
 
-Depends on M23. Extract small typed request/context/reply helpers; retain all
-five existing commands and one-backend behavior. Add schema-fixture support and
-an IPv6 manager compile probe, without enabling IPv6 loading or remote commands.
-Acceptance is the concrete baseline-preservation gate in the
+M24 extracts private request/field/reply and typed backend/selector helpers,
+retaining all five commands, admission precedence and one-backend behavior.
+An isolated IPv6 manager/server/global compile/link probe exercises installed
+native symbols without enabling IPv6 loading or remote commands. The concrete
+baseline-preservation gate is in the
 [architecture](command-architecture.md#m24-implementation-boundary), including
-strict six-test SQL/DHCP acceptance without deliberate outages. Produce the
-M25 server/global contract fixtures and explicit remaining evidence questions.
+strict six-test SQL/DHCP acceptance without deliberate outages. Execution evidence
+is recorded in `build/milestone24/checks.md`. M25 must freeze its own commercial
+schema fixtures and resolve U2/U6 before registering its eight command names.
 
 ### M25 — DHCPv4 servers and global parameters
 

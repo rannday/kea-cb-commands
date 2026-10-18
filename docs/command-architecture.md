@@ -1,16 +1,20 @@
 # Command architecture for commercial parity
 
-This is the M23 design for unmodified Kea 3.2.1, C++14 and the existing
-standalone shared-library hook. It authorizes no implementation. The
+This records the M23 design and M24 shared infrastructure for unmodified
+Kea 3.2.1, C++14 and the existing standalone shared-library hook. Future command
+families remain proposals until their implementation milestones. The
 [command inventory](compatibility-matrix.md) defines the target; the
 [gap analysis](commercial-parity-gap-analysis.md) records unresolved contracts.
 
 ## Current architecture
 
 One CMake MODULE exports the Kea lifecycle functions. `src/diagnostic.cc`
-registers five IPv4-only commands; `commands.cc` contains callout boundaries,
-admission and replies; `arguments.cc` validates minimal subnet/pool requests;
-`subnet4.cc` resolves the native pool and applies subnet safety policy.
+registers five IPv4-only commands; `commands.cc` retains command-specific replies
+and explicit mutation admission. Header-only `command_support.h` shares request
+extraction, required/optional field checks, safe errors and response publication.
+`backend_support.h` shares typed per-invocation manager access, single-backend
+selection and server selectors. `arguments.cc` validates minimal subnet/pool
+requests; `subnet4.cc` retains native CRUD and subnet safety policy.
 The native manager is resolved per invocation, with exactly one backend.
 Exceptions are contained, mutations default to denied, and persistence does
 not activate consumers. These are useful foundations, but the minimal object
@@ -22,7 +26,8 @@ SQL layer, configuration store, controller service or universal CRUD framework.
 
 ## Registration and lifecycle
 
-Use a small static descriptor table containing command name, DHCP family,
+M24 retains the five explicit registrations. When additional families justify
+it, use a small static descriptor table containing command name, DHCP family,
 read/mutation classification and callout pointer. Register only implemented,
 qualified commands. Keep the existing five names and request/response behavior.
 Do not make a `remote-*` alias for a `cb-*` handler with a narrower contract.
@@ -158,21 +163,46 @@ Public native source at commit
 
 ## M24 implementation boundary
 
-M24 should extract the smallest reusable request/context/reply helpers from
-existing plumbing, retain typed subnet behavior, and add explicit schema fixture
-support for later families. A small `command_support` module is sufficient if
-extraction is justified; avoid pre-building all future handlers or templates.
-Compile-probe the IPv6 manager interface without enabling IPv6 loading.
+M24 implements two private header-only helpers rather than a new framework.
+`CommandRequest`, `optionalField` and `requireFields` preserve command-specific
+schema checks, omitted/null distinctions and error messages. `respond` uses
+Kea's exact `ConstElementPtr` argument type. `commandBoundary` shares the
+get/set/delete exception envelope; list/diagnostic retain their distinct outer
+publication handling. Admission remains explicit before request parsing in
+each mutating callout.
 
-Acceptance: unchanged five-command registration and replies, same admission
-precedence and failure containment, exactly-one-backend behavior, clean
-load/unload/failure cleanup, pinned Release C++14 warnings-as-errors build,
-existing unit/lifecycle and six strict SQL/DHCP tests with zero skips in the
-explicit non-interruption mode, both SQL engines and MT modes, quality and
-artifact checks. Add focused tests for extracted helpers only where behavior
-needs independent proof.
+`backendPool<Manager>` preserves native family types without casts or cached
+state. `singleBackendSelector` retains separate list and mutation/lookup error
+policies. Tag validation and ALL/ONE construction are shared; association
+conflict checks and richer-object rejection remain in the IPv4 implementation.
 
-M24 registers no `remote-*` names, changes no production contracts, adds no
-activation and implements no feature-family CRUD. Its handoff includes concrete
-server/global schemas and U2/U6 resolution tasks for M25. Unresolved compatibility
-questions remain explicit rather than being hidden by a common response helper.
+The opt-in `KEA_DB_COMMANDS_DHCP6_PROBE` builds
+`tests/native_dhcp6_probe.cc` as an isolated executable. It instantiates the
+shared helper with `ConfigBackendDHCPv6Mgr`, constructs native selectors and
+forces link references to server/global read, create/update and delete methods.
+Those references are in a retained function that is never called. Strict C++14,
+`-z defs` and eager `-z now` linking plus executable startup verify installed
+headers and shared symbols. Startup constructs an empty manager only: no SQL
+backend, persistent operation, command registration or DHCPv6 daemon loading.
+
+The opt-in `KEA_DB_COMMANDS_CALLOUT_TESTS` target links actual production
+callouts against deterministic failing backend fixtures and native Kea callout
+handles. It verifies private native errors, public contract errors, response
+envelopes, admission before backend access and absence of retries without SQL
+interruption. The regular lifecycle test checks request validation through
+real daemon command dispatch in both threading modes.
+
+Acceptance remains unchanged five-command registration and replies, admission
+precedence, exception containment, exactly-one-backend behavior, clean lifecycle,
+pinned Release C++14 warnings-as-errors, unit/lifecycle and all six strict
+SQL/DHCP tests without skips in explicit non-interruption mode, both engines
+and MT modes, quality and artifact checks. Exact execution results belong in
+`build/milestone24/checks.md`.
+
+M25 can use these helpers for four DHCPv4 server and four global-parameter
+commands without another infrastructure extraction. First freeze per-command
+request/reply fixtures from the M23 matrix; resolve U6 server lifecycle and U2
+compound-global encoding using pinned native APIs and disposable SQL tests.
+Fixtures and commercial envelopes remain family-specific. M24 creates no
+commercial registrations, activates no configuration and does not establish
+DHCPv6 runtime or database compatibility.

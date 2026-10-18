@@ -3,7 +3,7 @@
 
 #include "commands.h"
 
-#include "arguments.h"
+#include "backend_support.h"
 #include "subnet4.h"
 
 #include <cc/command_interpreter.h>
@@ -13,31 +13,19 @@
 
 namespace kea_db_commands {
 
-namespace {
-void requireMutationAdmission() {
-    if (!mutationsAllowed()) {
-        throw ContractError("Mutations are disabled; configure allow-mutations: true on the "
-                            "designated administrative writer.");
-    }
-}
-} // namespace
-
 int diagnostic(isc::hooks::CalloutHandle& handle) {
     using namespace isc::data;
     using namespace isc::config;
     try {
-        ConstElementPtr command;
-        handle.getArgument("command", command);
-        const auto arguments = command ? command->get("arguments") : ConstElementPtr();
+        const auto request = commandRequest(handle);
         ConstElementPtr response;
-        if (!command || (arguments && (arguments->getType() != Element::map ||
-                                       !arguments->mapValue().empty()))) {
+        if (!request.acceptsEmptyArguments()) {
             response = createAnswer(CONTROL_RESULT_ERROR,
                                     "This diagnostic accepts only absent or empty arguments.");
         } else {
             // Resolve the server's manager at command time. Do not retain a pool
             // across configuration reloads or initialize SQL connections here.
-            const auto pool = isc::dhcp::ConfigBackendDHCPv4Mgr::instance().getPool();
+            const auto pool = backendPool<isc::dhcp::ConfigBackendDHCPv4Mgr>();
             if (!pool) {
                 response = createAnswer(CONTROL_RESULT_ERROR,
                                         "The configuration backend pool is unavailable.");
@@ -53,15 +41,13 @@ int diagnostic(isc::hooks::CalloutHandle& handle) {
             }
         }
         // HookedCommandMgr stores a ConstElementPtr, not an ElementPtr.
-        handle.setArgument("response", response);
-        return 0;
+        return respond(handle, response);
     } catch (...) {
         // Database exceptions may contain credentials. Do not expose their text.
         try {
             ConstElementPtr response =
                 createAnswer(CONTROL_RESULT_ERROR, "Configuration backend diagnostic failed.");
-            handle.setArgument("response", response);
-            return 0;
+            return respond(handle, response);
         } catch (...) {
             return 1;
         }
@@ -72,12 +58,9 @@ int subnet4List(isc::hooks::CalloutHandle& handle) {
     using namespace isc::data;
     using namespace isc::config;
     try {
-        ConstElementPtr command;
-        handle.getArgument("command", command);
-        const auto arguments = command ? command->get("arguments") : ConstElementPtr();
+        const auto request = commandRequest(handle);
         ConstElementPtr response;
-        if (!command || (arguments && (arguments->getType() != Element::map ||
-                                       !arguments->mapValue().empty()))) {
+        if (!request.acceptsEmptyArguments()) {
             response = createAnswer(CONTROL_RESULT_ERROR,
                                     "cb-subnet4-list accepts only absent or empty arguments.");
         } else {
@@ -89,15 +72,13 @@ int subnet4List(isc::hooks::CalloutHandle& handle) {
                 response = createAnswer(CONTROL_RESULT_ERROR, error.what());
             }
         }
-        handle.setArgument("response", response);
-        return 0;
+        return respond(handle, response);
     } catch (...) {
         // Upstream database exceptions can include connection parameters.
         try {
             ConstElementPtr response = createAnswer(
                 CONTROL_RESULT_ERROR, "Configuration backend read failed or unavailable.");
-            handle.setArgument("response", response);
-            return 0;
+            return respond(handle, response);
         } catch (...) {
             return 1;
         }
@@ -105,39 +86,26 @@ int subnet4List(isc::hooks::CalloutHandle& handle) {
 }
 namespace {
 int subnet4Lookup(isc::hooks::CalloutHandle& handle, const bool remove) {
-    using namespace isc::data;
     using namespace isc::config;
-    try {
-        ConstElementPtr response;
-        try {
+    return commandBoundary(
+        handle,
+        remove ? "Configuration backend deletion failed or unavailable; reconcile backend state "
+                 "before retrying."
+               : "Configuration backend read failed or unavailable.",
+        [&]() {
             if (remove) {
                 requireMutationAdmission();
             }
-            ConstElementPtr command;
-            handle.getArgument("command", command);
-            const auto result =
-                lookupSubnet(command ? command->get("arguments") : ConstElementPtr(), remove);
+            const auto result = lookupSubnet(commandRequest(handle).arguments, remove);
             const bool found = remove ? result->get("deleted")->intValue() != 0
                                       : !result->get("subnet4")->listValue().empty();
-            response = createAnswer(
+            return createAnswer(
                 found ? CONTROL_RESULT_SUCCESS : CONTROL_RESULT_EMPTY,
                 found ? (remove ? "DHCPv4 subnet deleted; leases retained; activation required."
                                 : "DHCPv4 subnet retrieved.")
                       : "DHCPv4 subnet not found.",
                 result);
-        } catch (const ContractError& error) {
-            response = createAnswer(CONTROL_RESULT_ERROR, error.what());
-        } catch (...) {
-            response = createAnswer(CONTROL_RESULT_ERROR,
-                                    remove ? "Configuration backend deletion failed or "
-                                             "unavailable; reconcile backend state before retrying."
-                                           : "Configuration backend read failed or unavailable.");
-        }
-        handle.setArgument("response", response);
-        return 0;
-    } catch (...) {
-        return 1;
-    }
+        });
 }
 
 } // namespace
@@ -151,27 +119,15 @@ int subnet4Del(isc::hooks::CalloutHandle& handle) {
 }
 
 int subnet4Set(isc::hooks::CalloutHandle& handle) {
-    using namespace isc::data;
     using namespace isc::config;
-    try {
-        ConstElementPtr response;
-        try {
-            requireMutationAdmission();
-            ConstElementPtr command;
-            handle.getArgument("command", command);
-            const auto result = setSubnet(command ? command->get("arguments") : ConstElementPtr());
-            response = createAnswer(CONTROL_RESULT_SUCCESS, "DHCPv4 subnet persisted.", result);
-        } catch (const ContractError& error) {
-            response = createAnswer(CONTROL_RESULT_ERROR, error.what());
-        } catch (...) {
-            response = createAnswer(CONTROL_RESULT_ERROR,
-                                    "Configuration backend write failed or unavailable; "
-                                    "reconcile backend state before retrying.");
-        }
-        handle.setArgument("response", response);
-        return 0;
-    } catch (...) {
-        return 1;
-    }
+    return commandBoundary(handle,
+                           "Configuration backend write failed or unavailable; reconcile backend "
+                           "state before retrying.",
+                           [&]() {
+                               requireMutationAdmission();
+                               const auto result = setSubnet(commandRequest(handle).arguments);
+                               return createAnswer(CONTROL_RESULT_SUCCESS,
+                                                   "DHCPv4 subnet persisted.", result);
+                           });
 }
 } // namespace kea_db_commands

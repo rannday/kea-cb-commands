@@ -61,12 +61,8 @@ void validateLookupArguments(const isc::data::ConstElementPtr& arguments, const 
 isc::dhcp::Subnet4Ptr parseSubnet4(const isc::data::ConstElementPtr& input) {
     using namespace isc::data;
     using namespace isc::dhcp;
-    if (input->getType() != Element::map ||
-        input->mapValue().size() != (input->get("pools") ? 4 : 3) || !input->get("id") ||
-        !input->get("subnet") || !input->get("valid-lifetime")) {
-        throw ContractError(
-            "subnet4 requires id, subnet and valid-lifetime; only pools is optional.");
-    }
+    requireFields(input, {"id", "subnet", "valid-lifetime"}, {"pools"},
+                  "subnet4 requires id, subnet and valid-lifetime; only pools is optional.");
     const auto id = input->get("id");
     const auto lifetime = input->get("valid-lifetime");
     if (id->getType() != Element::integer || id->intValue() < 1 || id->intValue() > SUBNET_ID_MAX ||
@@ -101,11 +97,9 @@ isc::dhcp::Subnet4Ptr parseSubnet4(const isc::data::ConstElementPtr& input) {
     } catch (...) {
         throw ContractError("subnet must be a canonical IPv4 CIDR string.");
     }
-    const auto pools = input->get("pools");
+    const auto pools = optionalField(input, "pools", Element::list,
+                                     "pools must be a list of start/end address maps.");
     if (pools) {
-        if (pools->getType() != Element::list) {
-            throw ContractError("pools must be a list of start/end address maps.");
-        }
         for (const auto& range : pools->listValue()) {
             if (range->getType() != Element::map || range->mapValue().size() != 2 ||
                 !range->get("start") || !range->get("end") ||

@@ -29,7 +29,7 @@ def verify_denied(send):
         "cb-subnet4-del": {"id": 900, "server-tag": "all", "preserve-leases": True},
     }
     for name, valid in mutations.items():
-        for arguments in (valid, None, {}, [], {"unexpected": True}):
+        for arguments in (valid, None, {}, [], False, 1, "invalid", {"unexpected": True}):
             assert send(name, arguments) == ADMISSION_ERROR
     assert require_success(send(DIAGNOSTIC))["allow-mutations"] is False
     for name, arguments in ((SUBNET_LIST, None), ("cb-subnet4-get", {"id": 900})):
@@ -40,6 +40,78 @@ def require_success(response):
     if response["result"] != 0:
         raise AssertionError(response)
     return response.get("arguments")
+
+
+def verify_argument_contracts(send):
+    """Assert complete public error envelopes through the real command dispatch."""
+    cases = [
+        ("cb-subnet4-get", None,
+         "Expected one id or subnet selector and optional server-tag."),
+        ("cb-subnet4-get", {},
+         "Expected exactly one id or subnet selector and optional server-tag."),
+        ("cb-subnet4-get", {"id": 900, "subnet": "198.18.0.0/24"},
+         "Expected exactly one id or subnet selector and optional server-tag."),
+        ("cb-subnet4-get", {"id": "900"},
+         "id must be an integer in 1..4294967294."),
+        ("cb-subnet4-get", {"id": True},
+         "id must be an integer in 1..4294967294."),
+        ("cb-subnet4-get", {"subnet": "198.18.0.1/24"},
+         "subnet must be a canonical IPv4 CIDR string."),
+        ("cb-subnet4-get", {"id": 900, "server-tag": None},
+         "server-tag must be an explicit string."),
+        ("cb-subnet4-get", {"id": 900, "server-tag": "WRITER"},
+         "server-tag must be lowercase without surrounding whitespace."),
+        ("cb-subnet4-del", {"id": 900, "server-tag": "all"},
+         "Deletion requires server-tag and preserve-leases: true."),
+        ("cb-subnet4-del", {"id": 900, "server-tag": "all", "preserve-leases": 1},
+         "Deletion requires server-tag and preserve-leases: true."),
+        ("cb-subnet4-set", {"subnet4": {}},
+         "Expected only server-tag and one subnet4 map."),
+        ("cb-subnet4-set", {"server-tag": False, "subnet4": {}},
+         "server-tag must be an explicit string."),
+        ("cb-subnet4-set", {"server-tag": "all", "subnet4": []},
+         "subnet4 requires id, subnet and valid-lifetime; only pools is optional."),
+        ("cb-subnet4-set", {"server-tag": "all", "subnet4": {
+            "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": "600"}},
+         "id and valid-lifetime must be integers in 1..4294967294."),
+        ("cb-subnet4-set", {"server-tag": "all", "subnet4": {
+            "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600,
+            "pools": {}}},
+         "pools must be a list of start/end address maps."),
+        ("cb-subnet4-set", {"server-tag": "all", "subnet4": {
+            "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600,
+            "pools": [{"start": "198.18.0.10"}]}},
+         "Each pool supports only required start and end strings."),
+    ]
+    for name, arguments, text in cases:
+        assert send(name, arguments) == {"result": 1, "text": text}, (name, arguments)
+
+    # Optional tags, either lookup identity, and omitted/empty pools reach the
+    # backend boundary only after the same validation used with a real backend.
+    for arguments in (
+        {"id": 900}, {"id": 900, "server-tag": "all"},
+        {"subnet": "198.18.0.0/24", "server-tag": "consumer-a"},
+    ):
+        assert send("cb-subnet4-get", arguments) == {
+            "result": 1,
+            "text": "Subnet lookup/deletion requires exactly one configured SQL backend.",
+        }
+    for optional_pools in ({}, {"pools": []}):
+        assert send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
+            "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600,
+            **optional_pools}}) == {
+                "result": 1,
+                "text": "cb-subnet4-set requires exactly one configured SQL backend.",
+            }
+    for name, text in (
+        (DIAGNOSTIC, "This diagnostic accepts only absent or empty arguments."),
+        (SUBNET_LIST, "cb-subnet4-list accepts only absent or empty arguments."),
+    ):
+        for arguments in ([], False, 1, "invalid", {"unexpected": True}):
+            assert send(name, arguments) == {"result": 1, "text": text}
+    for arguments in (None, {}):
+        assert send(SUBNET_LIST, arguments) == {
+            "result": 1, "text": "No configuration backend is configured."}
 
 
 def run_case(server, hook, directory, multithreading, *, mutation_admission=True):
@@ -137,12 +209,14 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
             if SUBNET_LIST not in names:
                 raise AssertionError("Subnet list command was not registered")
             assert "cb-subnet4-set" in names
+            assert not any(name.startswith("remote-") for name in names)
             if mutation_admission:
                 verify_denied(send)
                 config["Dhcp4"]["hooks-libraries"][0]["parameters"] = {"allow-mutations": True}
                 save()
                 require_success(send("config-reload"))
                 assert require_success(send(DIAGNOSTIC))["allow-mutations"] is True
+                verify_argument_contracts(send)
             for name in ("cb-subnet4-get", "cb-subnet4-del"):
                 assert name in names
                 arguments = {"id": 900}

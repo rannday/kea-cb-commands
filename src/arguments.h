@@ -2,17 +2,12 @@
 #ifndef KEA_DB_COMMANDS_ARGUMENTS_H
 #define KEA_DB_COMMANDS_ARGUMENTS_H
 
+#include "command_support.h"
+
 #include <cc/data.h>
 #include <dhcpsrv/subnet.h>
-#include <stdexcept>
 
 namespace kea_db_commands {
-
-// Only errors raised by our contract checks may be returned verbatim. Native
-// exceptions can contain connection strings and must remain private.
-struct ContractError : std::runtime_error {
-    using std::runtime_error::runtime_error;
-};
 
 // Validate identity selectors before resolving backend state.
 void validateLookupArguments(const isc::data::ConstElementPtr& arguments, bool remove);

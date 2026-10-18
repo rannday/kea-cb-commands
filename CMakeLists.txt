@@ -87,6 +87,19 @@ target_compile_options(kea_db_commands PRIVATE
 set_target_properties(kea_db_commands PROPERTIES SKIP_BUILD_RPATH YES INSTALL_RPATH "")
 target_link_options(kea_db_commands PRIVATE -Wl,-z,defs)
 
+# This isolated executable is neither installed nor registered with CTest.
+# It preserves the strict integration runner's existing six-test contract.
+option(KEA_DB_COMMANDS_DHCP6_PROBE "Build the isolated Kea 3.2.1 DHCPv6 API link probe" OFF)
+if(KEA_DB_COMMANDS_DHCP6_PROBE)
+    add_executable(native_dhcp6_probe tests/native_dhcp6_probe.cc)
+    set_target_properties(native_dhcp6_probe PROPERTIES
+        CXX_STANDARD 14 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO
+        SKIP_BUILD_RPATH YES INSTALL_RPATH "")
+    target_link_libraries(native_dhcp6_probe PRIVATE PkgConfig::KEA)
+    target_compile_options(native_dhcp6_probe PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(native_dhcp6_probe PRIVATE -Wl,-z,defs -Wl,-z,now)
+endif()
+
 include(GNUInstallDirs)
 install(TARGETS kea_db_commands LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/kea/hooks)
 
@@ -105,6 +118,20 @@ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/release-build.json" CONTENT
 
 include(CTest)
 if(BUILD_TESTING)
+    option(KEA_DB_COMMANDS_CALLOUT_TESTS "Run isolated callout exception boundary tests" OFF)
+    if(KEA_DB_COMMANDS_CALLOUT_TESTS)
+        add_executable(callout_boundary tests/callout_boundary.cc src/commands.cc)
+        target_link_libraries(callout_boundary PRIVATE PkgConfig::KEA)
+        target_compile_options(callout_boundary PRIVATE -Wall -Wextra -Wpedantic -Werror)
+        set_target_properties(callout_boundary PROPERTIES
+            CXX_STANDARD 14 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO
+            SKIP_BUILD_RPATH YES INSTALL_RPATH "")
+        target_link_options(callout_boundary PRIVATE -Wl,-z,defs)
+        add_test(NAME callout_boundary COMMAND callout_boundary)
+        string(JOIN ":" KEA_BOUNDARY_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
+        set_tests_properties(callout_boundary PROPERTIES
+            ENVIRONMENT "LD_LIBRARY_PATH=${KEA_BOUNDARY_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+    endif()
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     string(JOIN ":" KEA_TEST_LIBRARY_PATH ${KEA_LIBRARY_DIRS})
     add_test(NAME control_transport

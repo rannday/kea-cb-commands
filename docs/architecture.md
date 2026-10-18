@@ -30,12 +30,18 @@ separate operations; the hook never initiates activation.
 ## Implementation layout
 
 `src/diagnostic.cc` contains the four exported C entry points, lifecycle logging
-and message dictionary. `src/commands.cc` contains the five command callouts,
-response construction and exception containment. `src/arguments.cc` validates
-identity selectors and constructs the supported native subnet and pool objects.
-`src/subnet4.cc` owns backend selection, server-tag policy and native subnet CRUD
-operations. The matching headers are private implementation interfaces; they do
-not add exported hook entry points or a public project API.
+and message dictionary. `src/commands.cc` contains the five command callouts
+and their command-specific responses and explicit mutation admission boundaries.
+The private header `src/command_support.h` shares request extraction, field
+validation, safe contract errors, response publication and exception containment.
+`src/backend_support.h` shares typed per-invocation manager access, single-backend
+selection and canonical server-tag/selector construction. Each caller retains
+its existing validation order, error messages and backend policy.
+`src/arguments.cc` validates identity selectors and constructs supported native
+subnet and pool objects. `src/subnet4.cc` retains DHCPv4-specific association
+checks and native subnet CRUD operations. The matching headers are private
+implementation interfaces; they do not add exported hook entry points or a
+public project API.
 
 `load` checks the process and family, then registers
 `db-commands-diagnostic`, `cb-subnet4-list`, `cb-subnet4-get`, `cb-subnet4-set`
@@ -93,6 +99,15 @@ versions of its dependencies.
 There is no custom `cmake/` module because upstream provides pkg-config metadata.
 All implementation sources build into the same shared module with hidden
 visibility. The quality runner checks every source and private header under `src`.
+
+M24 adds an opt-in `KEA_DB_COMMANDS_DHCP6_PROBE` executable, separate from the
+module and the six-test acceptance gate. It compiles and links the pinned IPv6
+manager, selectors and server/global pool methods, and starts with eager symbol
+resolution. Its shared `backendPool` specialization accesses only an empty native
+manager; retained operation references are never invoked. This proves native API
+linkability, not DHCPv6 commands, database behavior or daemon-load compatibility.
+The production hook still refuses `kea-dhcp6`. See the
+[probe and M25 handoff](command-architecture.md#m24-implementation-boundary).
 
 ## Command invariants
 
