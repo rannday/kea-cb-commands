@@ -1,5 +1,16 @@
 # Commercial command compatibility matrix
 
+## M31 DHCPv4 qualification
+
+The [qualification audit](dhcp4-qualification.md) freezes **41 registered commands**
+and reproduces **3 implemented, 24 partial, 47 missing** functional analogues
+across the 74 commercial operations; exact compatibility remains **0/74**.
+Refusal-only endpoints are not implemented mutations. The
+[remediation plan](dhcp4-remediation-plan.md) separates native API limitations,
+missing evidence, stricter preconditions and concurrency requirements.
+Production readiness remains **NO-GO**; execution evidence is in
+[the M31 checks](../build/milestone31/checks.md).
+
 ## M30 client classes
 
 M30 is **PARTIAL**. Four project-specific `cb-client-class4-list/get/set/del`
@@ -163,11 +174,12 @@ Context7 returned master documentation; it is excluded from the pinned baseline.
 | Counting basis | Implemented | Partial | Missing | Total |
 | --- | --- | --- | --- | --- |
 | Exact commercial command interface | 0 | 0 | 74 | 74 |
-| Functional analogues in existing commands | 3 | 15 | 56 | 74 |
-| DHCPv4 functional analogues | 3 | 15 | 18 | 36 |
+| Functional analogues in existing commands | 3 | 24 | 47 | 74 |
+| DHCPv4 functional analogues | 3 | 24 | 9 | 36 |
 | DHCPv6 functional analogues | 0 | 0 | 38 | 38 |
 
-Six of the fifteen partial analogues are the v4 subnet list, get-by-id, get-by-prefix, set,
+M31 corrects this previously stale M26 aggregate table; historical milestone
+counts above retain their original scope. Six of the 24 partial analogues are the v4 subnet list, get-by-id, get-by-prefix, set,
 del-by-id and del-by-prefix operations. They share four existing `cb-subnet4-*`
 commands; they are neither six registered commands nor compatible aliases.
 The diagnostic is outside the commercial inventory.

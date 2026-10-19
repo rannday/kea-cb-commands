@@ -17,9 +17,13 @@ All sources build into one CMake `MODULE`; headers in `src/` are private.
 | File | Responsibility |
 | --- | --- |
 | [diagnostic.cc](src/diagnostic.cc) | Lifecycle exports, registration, Kea logging and message dictionary |
-| [commands.cc](src/commands.cc), [commands.h](src/commands.h) | Five callouts, response construction and exception containment |
-| [arguments.cc](src/arguments.cc), [arguments.h](src/arguments.h) | Identity validation, minimal native subnet/pool construction and `ContractError` |
+| [commands.cc](src/commands.cc), [commands.h](src/commands.h) | 41 callout boundaries, response construction and exception containment |
+| [arguments.cc](src/arguments.cc), [arguments.h](src/arguments.h) | Identity validation, bounded native subnet/pool preservation and `ContractError` |
 | [subnet4.cc](src/subnet4.cc), [subnet4.h](src/subnet4.h) | Backend selection, server-tag policy and native subnet CRUD |
+| [records4.cc](src/records4.cc), [options4.cc](src/options4.cc) | Server/scalar-global and definition/global-option handlers |
+| [shared_network4.cc](src/shared_network4.cc), [scoped_options4.cc](src/scoped_options4.cc) | Network and scoped-option handlers |
+| [client_classes4.cc](src/client_classes4.cc) | Ordered class reads and guarded fresh creation |
+| [command_support.h](src/command_support.h), [backend_support.h](src/backend_support.h), [option_support.h](src/option_support.h) | Shared request, admission, backend and native option helpers |
 | [CMakeLists.txt](CMakeLists.txt) | Kea API/link probe, shared module and opt-in CTest families |
 
 Required C exports are `version`, `load`, `unload` and
@@ -30,14 +34,17 @@ Required C exports are `version`, `load`, `unload` and
 - `db-commands-diagnostic`: pool API accessibility, not database connectivity.
 - `cb-subnet4-list`: absent/empty arguments; native subnet serialization.
 - `cb-subnet4-get`: one ID or canonical IPv4 prefix, optional server tag.
-- `cb-subnet4-set`: explicit server tag and one minimal subnet, optional pools.
+- `cb-subnet4-set`: explicit server tag and one bounded standalone subnet, optional pools.
 - `cb-subnet4-del`: one identity, explicit tag and `preserve-leases: true`.
 
 Exact fields, response codes and failures are defined in
 [command contracts](docs/commands.md) and the
 [list contract](docs/postgresql.md). Keep those interfaces compatible.
-Shared-network management, DHCPv6, option mutations and commercial `cb_cmds`
-compatibility are outside the implemented interface.
+The [M31 inventory](docs/dhcp4-qualification.md) enumerates all 41 commands,
+including server records, scalar globals, definitions, global/scoped options,
+shared networks and client classes. Fresh-only and refused mutation boundaries
+are family-specific. DHCPv6 and exact commercial `cb_cmds` compatibility remain
+unimplemented.
 
 ## Behavioral invariants
 
@@ -52,9 +59,10 @@ compatibility are outside the implemented interface.
 - Require one configured backend; the native pool's first-nonempty read behavior
   is not database aggregation. Preserve `ALL`/`ONE(tag)` visibility and `ANY`
   conflict checks; reject shared-network subnets and unsafe associations.
-- Set supports only minimal standalone subnets and basic IPv4 address ranges.
-  Refuse richer existing objects. Omitted pools preserve stored basic pools;
-  supplied pools replace them, and `[]` clears them.
+- Subnet set supports the bounded standalone attributes in
+  [subnet capabilities](docs/subnet4-capabilities.md); refuse unsupported existing
+  properties. Omitted pools preserve stored pools; supplied pools replace them
+  only when dependency guards permit, and `[]` clears them under those guards.
 - Native drivers own mutation transactions, rollback and audit. Preflight reads
   do not lock out independent writers; preserve the exclusive-writer contract.
 - Persistence never requests activation. Pull/reload/restart is explicit;

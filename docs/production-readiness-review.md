@@ -1,5 +1,15 @@
 # Production readiness review — Milestone 19 with M22 addendum
 
+**M31 qualification preserves production NO-GO.** The
+[DHCPv4 audit](dhcp4-qualification.md) covers all 41 registered commands,
+family-specific mutation restrictions and the M22 state/evidence gaps. Passing
+controlled SQL/DHCP qualification does not establish deployment safety. Complete
+associations/consumers, enforceable writer exclusion across restart and failover,
+ambiguous-outcome recovery, full intent/persisted/active equivalence and the
+upstream transaction-cleanup defect remain blockers. The
+[remediation plan](dhcp4-remediation-plan.md) prioritizes bounded DHCPv4 work
+before DHCPv6; no production guard is relaxed.
+
 **Milestone 22: PARTIAL; production readiness remains NO-GO.**
 [Read-only reconciliation](reconciliation-evidence.md) preserves native subnet
 data, diagnostic SQL associations/timestamps and independent runtime subtrees.

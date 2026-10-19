@@ -1,5 +1,16 @@
 # Commercial parity gap analysis
 
+## M31 DHCPv4 qualification
+
+The [qualification audit](dhcp4-qualification.md) freezes **41 registered commands**
+and reproduces **3 implemented, 24 partial, 47 missing** functional analogues
+across the 74 commercial operations; exact compatibility remains **0/74**.
+Refusal-only endpoints are not implemented mutations. The
+[remediation plan](dhcp4-remediation-plan.md) separates native API limitations,
+missing evidence, stricter preconditions and concurrency requirements.
+Production readiness remains **NO-GO**; execution evidence is in
+[the M31 checks](../build/milestone31/checks.md).
+
 ## M30 client classes
 
 M30 is **PARTIAL**. Four project-specific `cb-client-class4-list/get/set/del`

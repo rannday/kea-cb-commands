@@ -1,5 +1,12 @@
 # Kea Database Commands
 
+M31 audits the existing **41 commands** without adding production behavior.
+See the [DHCPv4 qualification](docs/dhcp4-qualification.md) and
+[prioritized remediation plan](docs/dhcp4-remediation-plan.md).
+Production readiness remains **NO-GO**; complete selected DHCPv4 safety work
+before starting DHCPv6. [M31 verification](build/milestone31/checks.md)
+records the current execution results.
+
 An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets, server records,
 selected global parameters, option definitions, global/scoped options, shared networks
 and client classes in ISC Kea's

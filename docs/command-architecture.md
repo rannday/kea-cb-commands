@@ -1,5 +1,12 @@
 # Command architecture for commercial parity
 
+M31 freezes the [41-command inventory and native API mapping](dhcp4-qualification.md).
+No production handler, registration or admission guard changes. An empty class
+predecessor appends on INSERT but preserves position on UPDATE in the pinned
+drivers; child replacement, associations and dependencies still block updates.
+The [remediation plan](dhcp4-remediation-plan.md) retains dedicated handlers and
+native writes, and separates evidence collection from concurrency enforcement.
+
 This records the M23 design and M24 shared infrastructure for unmodified
 Kea 3.2.1, C++14 and the existing standalone shared-library hook. Future command
 families remain proposals until their implementation milestones. The

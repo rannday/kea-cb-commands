@@ -73,9 +73,10 @@ not enumerated by the pinned native getter; these inactive objects and any futur
 association/activation need separate qualification. Evidence remains incomplete.
 Exclusive writer ownership is mandatory: preflight is not atomic fencing.
 
-Set uses createUpdateClientClass4 only after validation; get/list use native
-getClientClass4/getAllClientClasses4. Existing native delete/upsert is never
-called. Refusals preserve configuration rows, order, associations and audit state.
+Set uses createUpdateClientClass4 only after validation. Get/list read the native
+getAllClientClasses4 dictionary to retain evaluation order; get filters that
+ordered result by name. getClientClass4 is used for mutation preflight.
+Existing native delete/upsert is never called. Refusals preserve configuration rows, order, associations and audit state.
 Mutation envelopes add `activation-requested: false`. Persistence requires
 separate operator-controlled pull/reload/restart; uncertain writes require
 reconciliation before retry. See the [dependency backlog](dependency-safety-backlog.md).

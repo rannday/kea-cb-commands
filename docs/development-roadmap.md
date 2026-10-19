@@ -1,5 +1,19 @@
 # Development roadmap: commercial command parity
 
+**M31 qualification:** the [DHCPv4 audit](dhcp4-qualification.md) freezes 41
+commands and reconciles functional coverage at 3 implemented / 24 partial /
+47 missing; exact commercial interfaces remain 0/74. No feature or safety guard
+changes. [Execution evidence](../build/milestone31/checks.md) records the current
+matrix and quality results. Production remains NO-GO.
+
+**Recommended M32:** first qualify complete assigned-association reconstruction
+with native IDs/selectors and disposable SQL evidence, then investigate bounded
+existing scoped-option mutation under exact parent/class identity and enforced
+exclusive writer ownership. Preserve all current refusals until the proof is
+complete. See the [prioritized plan](dhcp4-remediation-plan.md), including test
+requirements, compatibility effects and upstream dependencies. Defer DHCPv6.
+This recommendation authorizes no M32 implementation.
+
 **M27 implementation: PARTIAL.** Four project-specific shared-network callouts
 add native list/get, explicit ANY membership evidence and guarded fresh creation.
 Existing update/delete and membership mutations remain refused. Network options
@@ -32,7 +46,7 @@ preceding references, class options, boot/lifetime fields and additional-only
 evaluation are supported within the documented contract. Existing update/delete
 and insertion remain refused. Production readiness remains NO-GO.
 
-**Recommended M31 qualification:** complete association/consumer inventories,
+**Historical recommendation before M31:** complete association/consumer inventories,
 atomic revision preconditions and exclusive-writer/recovery evidence before
 existing class mutations; qualify template/offer-lifetime roundtrip and exact
 commercial schemas separately. This recommendation authorizes no new work.

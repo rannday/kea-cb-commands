@@ -1,5 +1,18 @@
 # Dependency safety backlog
 
+M31 adds a [finite blocker ledger](dhcp4-qualification.md): **A 0, B 4, C 5,
+D 1, E 1, F 1** primary classifications across 12 issues. The concurrency issue
+also applies across families. Existing refusal is not proof of an upstream API
+limitation. Pool writes without a parent identity are a demonstrated limitation;
+assigned-association reconstruction remains an unqualified candidate. Native
+class updates can retain position, while server deletion demonstrably invokes
+orphan cleanup. See the [remediation plan](dhcp4-remediation-plan.md) for the
+required evidence and gates before any guard can change. M31 also establishes
+that both native class drivers reconstruct server tags before filtering whole
+objects; the conservative response marker does not prove missing native class
+associations. Consumer, child-preservation and concurrency gaps still prohibit
+existing-class mutations.
+
 This backlog records what must be proved before widening existing-object mutation
 support. Baseline: public ISC Kea 3.2.1 source commit
 `1737462bc79276e3269304ea8cd3d1c03400e30d`. It does not authorize new commands,
