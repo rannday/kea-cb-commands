@@ -5,11 +5,12 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from typing import Any
 
 from reconciliation import RecoveryGate, canonical, classify, evidence
 
 
-def observation():
+def observation() -> dict[str, Any]:
     return {"ownership": True, "complete": True, "persisted": {"id": 1},
             "intended": {"id": 1}, "consumers": {
                 "a": {"active": {"id": 1}, "intended": {"id": 1}},
@@ -103,6 +104,7 @@ class ReconciliationTests(unittest.TestCase):
             old = copy.deepcopy(gate.recover())
             current["consumers"]["b"]["active"] = None
             self.assertEqual(gate.recover()["state"], "EVIDENCE_INCOMPLETE")
+            assert gate.last is not None
             self.assertNotEqual(old["evidence"]["serial"], gate.last["serial"])
             for content in ("invalid", "{}", json.dumps({"version": 99})):
                 path.write_text(content)

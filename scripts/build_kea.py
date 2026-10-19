@@ -55,7 +55,10 @@ def extract_source(archive, destination, commit):
                 target.mkdir(parents=True, exist_ok=True)
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
-            with source.extractfile(member) as incoming, target.open("xb") as output:
+            incoming = source.extractfile(member)
+            if incoming is None:
+                raise ValueError(f"Archive member has no file content: {member.name}")
+            with incoming, target.open("xb") as output:
                 shutil.copyfileobj(incoming, output)
             target.chmod(0o755 if member.mode & 0o111 else 0o644)
         # Files are complete before links exist, so extraction never follows links.

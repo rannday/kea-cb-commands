@@ -1,6 +1,8 @@
 """Native shared-network assertions for disposable PostgreSQL/MariaDB fixtures."""
 
 # SPDX-License-Identifier: MPL-2.0
+from typing import Any
+
 from mutation import configure_admission
 from smoke import ADMISSION_ERROR, require_success
 
@@ -18,15 +20,15 @@ def verify_shared_networks(send, snapshot, sql, config, save):
     """Read/refusal snapshots include native audit records and all SQL objects."""
     del sql  # Rich membership/hidden-association fixtures belong to the caller.
 
-    def request(operation, obj=None, tag=TAG):
-        arguments = {"server-tag": tag}
+    def request(operation, obj=None, tag: Any = TAG):
+        arguments: dict[str, Any] = {"server-tag": tag}
         if operation == "set":
             arguments["shared-network"] = obj
         elif operation != "list":
             arguments["name"] = obj
         return send(PREFIX + operation, arguments)
 
-    def checked(operation, obj=None, tag=TAG, result=0):
+    def checked(operation, obj=None, tag: Any = TAG, result=0):
         before = snapshot()
         response = request(operation, obj, tag)
         assert response["result"] == result, response
@@ -142,7 +144,7 @@ def verify_shared_network_membership(send, snapshot, sql, config, save):
 
     def refuse(name="m27-members"):
         for operation in ("set", "del"):
-            arguments = {"server-tag": TAG}
+            arguments: dict[str, Any] = {"server-tag": TAG}
             arguments["shared-network" if operation == "set" else "name"] = (
                 {"name": name} if operation == "set" else name)
             before = snapshot()

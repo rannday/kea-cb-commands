@@ -11,12 +11,13 @@ from build_kea import extract_source
 
 class SourceExtractionTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
+        # unittest calls setUp before each test; these are per-test fixtures.
+        self.temporary: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory()  # pyright: ignore[reportUninitializedInstanceVariable]
         self.addCleanup(self.temporary.cleanup)
-        self.base = Path(self.temporary.name)
-        self.archive = self.base / "source.tar.gz"
-        self.destination = self.base / "source"
-        self.root = "kea-test-commit"
+        self.base: Path = Path(self.temporary.name)  # pyright: ignore[reportUninitializedInstanceVariable]
+        self.archive: Path = self.base / "source.tar.gz"  # pyright: ignore[reportUninitializedInstanceVariable]
+        self.destination: Path = self.base / "source"  # pyright: ignore[reportUninitializedInstanceVariable]
+        self.root: str = "kea-test-commit"  # pyright: ignore[reportUninitializedInstanceVariable]
 
     def write_archive(self, entries):
         with tarfile.open(self.archive, "w:gz") as archive:

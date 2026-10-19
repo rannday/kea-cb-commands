@@ -2,6 +2,8 @@
 #ifndef KEA_DB_COMMANDS_OPTION_SUPPORT_H
 #define KEA_DB_COMMANDS_OPTION_SUPPORT_H
 
+#include <config.h>
+
 #include "backend_support.h"
 
 #include <dhcp/libdhcp++.h>

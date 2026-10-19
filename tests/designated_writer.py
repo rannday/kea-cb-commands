@@ -10,6 +10,7 @@ import secrets
 import socket
 import subprocess
 import time
+from typing import Any
 
 from control import command
 from dhcp import CLIENT_PORT, RELAY, _isolated, _lease, _packet, _response
@@ -171,8 +172,8 @@ class Workflow:
         self.events = events
         self.held = False
         self.pending = False
-        self.writer = None
-        self.fenced = None
+        self.writer: Role | None = None
+        self.fenced: int | None = None
         self.reconciled = None
 
     def mutate(self, name, arguments):
@@ -210,6 +211,7 @@ class Workflow:
 
     def promote(self, start):
         assert self.held, "Promotion requires a write hold"
+        assert self.writer is not None, "Missing previous writer"
         assert self.writer.process.poll() == 0, "Old writer is not fenced"
         assert self.fenced == self.writer.process.pid, "Missing verified fencing"
         assert not self.pending, "Outstanding write or activation outcome"
@@ -231,7 +233,7 @@ def verify_designated_writer(args, directory, config, environment, authorization
     mt = config["Dhcp4"]["multi-threading"]["enable-multi-threading"]
     output = args.work_dir.resolve().parent / "designated-writer-results"
     output.mkdir(exist_ok=True)
-    report = {"backend": backend, "packet-mt": mt, "status": "FAIL", "events": []}
+    report: dict[str, Any] = {"backend": backend, "packet-mt": mt, "status": "FAIL", "events": []}
     events = report["events"]
     roles = []
 

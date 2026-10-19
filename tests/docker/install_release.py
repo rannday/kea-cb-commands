@@ -49,7 +49,10 @@ def main():
         for member in members:
             target = DEST / member.name.removeprefix(NAME + "/")
             target.parent.mkdir(parents=True, exist_ok=True)
-            with source.extractfile(member) as incoming, target.open("wb") as output:
+            incoming = source.extractfile(member)
+            if incoming is None:
+                raise ValueError(f"Archive member has no file content: {member.name}")
+            with incoming, target.open("wb") as output:
                 shutil.copyfileobj(incoming, output)
     manifest = json.loads((DEST / "manifest.json").read_text())
     print(json.dumps(manifest, indent=2), flush=True)

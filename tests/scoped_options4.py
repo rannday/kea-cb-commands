@@ -160,7 +160,9 @@ def verify_scoped_options(send, snapshot, sql, config, save):
                         if k in ("code", "space", "client-classes")}
             row = checked(scope, "get", identity)["options"][0]
             if option.get("csv-format") is False:
-                assert bytes.fromhex(row["data"]) == bytes.fromhex(option["data"]), row
+                data = option["data"]
+                assert isinstance(data, str)
+                assert bytes.fromhex(row["data"]) == bytes.fromhex(data), row
             if "client-classes" in option:
                 assert row["client-classes"] == option["client-classes"], row
             checked(scope, "del", identity, result=1)
@@ -174,7 +176,7 @@ def verify_scoped_options(send, snapshot, sql, config, save):
         ):
             checked(scope, "set", option, result=1)
         checked(scope, "get", key, tag="m25-server", result=1)
-        invalid_parent = ({"shared-network-name": "missing-m29"} if scope == "network"
+        invalid_parent: dict[str, object] = ({"shared-network-name": "missing-m29"} if scope == "network"
                           else {"subnet-id": 9999})
         if scope == "pool":
             invalid_parent.update(start="198.19.80.10", end="198.19.80.29")

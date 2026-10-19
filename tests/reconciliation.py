@@ -11,6 +11,26 @@ import os
 from pathlib import Path
 import secrets
 import time
+from collections.abc import Callable
+from typing import Any, TypedDict
+
+
+# Evidence documents carry backend-specific JSON fields; gate results have a fixed schema.
+class Classification(TypedDict):
+    state: str
+    reasons: list[str]
+
+
+class ObservationResult(Classification):
+    evidence: dict[str, Any]
+
+
+class Journal(TypedDict):
+    version: int
+    deployment: str
+    held: bool
+    unknown: bool
+    reason: str
 
 
 def canonical(value, field=None):
@@ -56,7 +76,7 @@ def process_identity(pid):
             "boot-id": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}
 
 
-def classify(observation):
+def classify(observation: dict[str, Any]) -> Classification:
     """Return primary status plus all reasons, in documented precedence."""
     reasons = []
     if not observation.get("ownership"):
@@ -90,14 +110,14 @@ class RecoveryGate:
     Only collect() may establish fresh evidence. Stored snapshots and operator
     acknowledgements cannot clear a hold. Caller must supervise all writers.
     """
-    def __init__(self, path, deployment, collect):
+    def __init__(self, path, deployment: str, collect: Callable[[], dict[str, Any]]):
         self.path = Path(path)
         self.deployment = deployment
         self.collect = collect
         self.session = secrets.token_hex(16)
         self.serial = 0
-        self.last = None
-        self.state = {"version": 1, "deployment": deployment, "held": True,
+        self.last: dict[str, Any] | None = None
+        self.state: Journal = {"version": 1, "deployment": deployment, "held": True,
                       "unknown": False, "reason": "fresh reconciliation required"}
         try:
             saved = json.loads(self.path.read_text(encoding="utf-8"))
@@ -128,7 +148,7 @@ class RecoveryGate:
         finally:
             temporary.unlink(missing_ok=True)
 
-    def observe(self):
+    def observe(self) -> ObservationResult:
         # No API accepts a caller-supplied old observation.
         self.serial += 1
         observation = copy.deepcopy(self.collect())
@@ -137,7 +157,7 @@ class RecoveryGate:
         self.last = observation
         return {**classify(observation), "evidence": observation}
 
-    def recover(self):
+    def recover(self) -> ObservationResult:
         self.state.update(held=True, reason="recovery in progress")
         self._save()
         result = self.observe()
@@ -150,7 +170,7 @@ class RecoveryGate:
                 observation.get("persisted") == observation.get("intended")):
             self.state["unknown"] = False
             observation["unknown"] = False
-            result = {**classify(observation), "evidence": observation}
+            result: ObservationResult = {**classify(observation), "evidence": observation}
         if result["state"] == "CONVERGED":
             self.state.update(held=False, reason="fresh convergence verified")
         self._save()

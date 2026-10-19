@@ -9,6 +9,7 @@ import socket
 import struct
 import time
 from pathlib import Path
+from typing import Any
 
 from smoke import require_success
 from options4 import PAYLOADS
@@ -81,7 +82,7 @@ def _response(data, xid, hardware, expected, boot_file=None, lifetime=600):
     return socket.inet_ntoa(data[16:20]), options
 
 
-def _receive(receiver, xid, hardware, expected, timeout=3, boot_file=None, lifetime=600):
+def _receive(receiver, xid, hardware, expected, timeout: float = 3, boot_file=None, lifetime=600):
     deadline = time.monotonic() + timeout
     while True:
         remaining = deadline - time.monotonic()
@@ -296,7 +297,7 @@ def _verify_rich_subnet(send, directory, snapshot, sql):
     _exchange(directory, "127.0.0.64", "127.0.0.79", lifetime=1200,
               boot_file="m28-packet.efi", expected_options=packet_options)
     # Omitted rich fields/pools survive a lifetime-only native update.
-    update = {"server-tag": "test-server", "subnet4": {
+    update: dict[str, Any] = {"server-tag": "test-server", "subnet4": {
         "id": SUBNET_ID, "subnet": "127.0.0.0/24", "valid-lifetime": 1200,
         "client-classes": ["KNOWN"]}}
     require_success(send("cb-subnet4-set", update))
@@ -470,6 +471,7 @@ def verify_packet_restart(send, directory):
     path = _exchange(directory, "127.0.0.30", "127.0.0.40", boot_file="m25-packet.efi",
                      expected_options=expected)
     print("PASS: restarted Kea loads SQL pool/global values and records a fresh DHCP lease")
+    assert path is not None
     before = path.read_bytes()
     time.sleep(1.1)
     response = require_success(send("cb-subnet4-del", {

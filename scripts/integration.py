@@ -11,6 +11,8 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
+import sanitizers
+
 
 EXPECTED_TESTS = {
     "control_transport",
@@ -164,9 +166,8 @@ def main():
     print(json.dumps(versions, indent=2), flush=True)
     environment = kea_environment(prefix)
     sanitizer_logs = None
+    compiler = None
     if args.sanitizers:
-        import sanitizers
-
         if build_dir == (source_dir / "build/integration").resolve():
             raise RuntimeError("Use a dedicated --build-dir (for example build/sanitizers)")
         compiler = required_program("g++")
@@ -180,19 +181,21 @@ def main():
         "-U", "*KEA*",
         f"-DCMAKE_BUILD_TYPE={'RelWithDebInfo' if args.sanitizers else 'Release'}",
         "-DBUILD_TESTING=ON", "-DCMAKE_INSTALL_LIBDIR=lib",
+        # Keep CTest on this interpreter, including after a uv default change.
+        f"-DPython3_EXECUTABLE={sys.executable}",
         "-DKEA_DB_COMMANDS_WARNINGS_AS_ERRORS=ON",
         f"-DKEA_DB_COMMANDS_SKIP_OUTAGES={'ON' if args.skip_outages else 'OFF'}",
         f"-DKEA_DB_COMMANDS_MULTIPROCESS_TESTS={'ON' if args.multiprocess else 'OFF'}",
         f"-DKEA_DB_COMMANDS_SANITIZERS={'ON' if args.sanitizers else 'OFF'}",
     ]
-    if args.sanitizers:
+    if compiler is not None:
         command.append(f"-DCMAKE_CXX_COMPILER={compiler}")
     for option in ("RUNTIME", "POSTGRESQL", "MYSQL", "DHCP"):
         command.append(f"-DKEA_DB_COMMANDS_{option}_TESTS=ON")
     command.extend(f"-D{name}={value}" for name, value in paths.items())
     run(command, environment)
     run(["cmake", "--build", str(build_dir), "--parallel", str(args.jobs)], environment)
-    if args.sanitizers:
+    if compiler is not None and sanitizer_logs is not None:
         sanitizers.verify_instrumentation(build_dir / "libdhcp_db_commands.so")
         sanitizers.verify_detectors(compiler, sanitizer_logs, environment)
     report = build_dir / "ctest-results.xml"
@@ -209,7 +212,7 @@ def main():
             check(target)
         except RuntimeError as error:
             errors.append(str(error))
-    if args.sanitizers:
+    if sanitizer_logs is not None:
         try:
             sanitizers.verify_logs(sanitizer_logs)
         except RuntimeError as error:

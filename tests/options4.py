@@ -96,7 +96,9 @@ def verify_options(send, snapshot, sql, config, save):
         if obj.get("csv-format", True):
             assert row["data"] == obj["data"], row
         else:
-            assert bytes.fromhex(row["data"]) == bytes.fromhex(obj["data"]), row
+            data = obj["data"]
+            assert isinstance(data, str)
+            assert bytes.fromhex(row["data"]) == bytes.fromhex(data), row
         assert row["always-send"] is True
         if "client-classes" in obj:
             assert row["client-classes"] == obj["client-classes"]

@@ -22,7 +22,10 @@ class PackageTests(unittest.TestCase):
                 for entry in tar.getmembers():
                     self.assertTrue(entry.isfile())
                     self.assertEqual((entry.uid, entry.gid, entry.mtime), (0, 0, 0))
-                    self.assertEqual(tar.extractfile(entry).read(), files[entry.name])
+                    incoming = tar.extractfile(entry)
+                    assert incoming is not None
+                    with incoming:
+                        self.assertEqual(incoming.read(), files[entry.name])
 
     def test_compatibility_and_tag_guards(self):
         metadata = {"version": "0.1.0", "kea_version": "3.2.1-git", "build_type": "Release",

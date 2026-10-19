@@ -2,6 +2,7 @@
 
 # SPDX-License-Identifier: MPL-2.0
 import copy
+import io
 import json
 import selectors
 import signal
@@ -42,7 +43,7 @@ class Peer:
             self.port = reservation.getsockname()[1]
         self.config["Dhcp4"]["control-sockets"][0]["socket-port"] = self.port
         self.authorization = authorization
-        self.process = None
+        self.process: subprocess.Popen[bytes] | None = None
         self.log = (root / "kea.log").open("w", encoding="utf-8")
 
     def start(self):
@@ -54,6 +55,7 @@ class Peer:
             env=self.environment, stdout=self.log, stderr=subprocess.STDOUT)
 
         def ready():
+            assert self.process is not None
             assert self.process.poll() is None, "Peer exited; inspect retained Kea log"
             try:
                 response = self.send("list-commands")
@@ -97,6 +99,8 @@ def row_gate(argv, environment):
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                           stderr=subprocess.DEVNULL) as process:
         try:
+            assert process.stdin is not None
+            assert isinstance(process.stdout, io.BufferedReader)
             process.stdin.write(
                 b"START TRANSACTION; SELECT subnet_id FROM dhcp4_subnet_server "
                 b"WHERE subnet_id=1500 FOR UPDATE; SELECT 'gate-ready';\n")
@@ -152,6 +156,11 @@ def verify_multiprocess(args, directory, config, environment, authorization,
         assert len(rows) == (1 if response["result"] == 0 else 0)
         return rows[0] if rows else None
 
+    def require_subnet(client=send, subnet_id=1500, tag="test-server"):
+        row = get(client, subnet_id, tag)
+        assert row is not None, f"Expected subnet {subnet_id} for {tag}"
+        return row
+
     def listed(client):
         rows = require_success(client("cb-subnet4-list"))["subnet4"]
         assert len({row["id"] for row in rows}) == len(rows)
@@ -203,6 +212,8 @@ def verify_multiprocess(args, directory, config, environment, authorization,
         assert len({peer.process.pid for peer in peers}) == 2
         # Three repetitions bound race costs. Outcomes may depend on scheduling;
         # the row-gated stale-update case below provides deterministic evidence.
+        pool_a = [{"start": "198.25.0.10", "end": "198.25.0.20"}]
+        pool_b = [{"start": "198.25.0.30", "end": "198.25.0.40"}]
         for iteration in range(3):
             for subnet_id in (1500, 1501):
                 assert remove(subnet_id)["result"] in (0, 3)
@@ -224,18 +235,16 @@ def verify_multiprocess(args, directory, config, environment, authorization,
                 require_success(put(set_request(subnet_id=subnet_id)))
             outcomes = race(lambda: put(set_request(710)),
                             lambda: put(set_request(720, subnet_id=1501), other))
-            assert [get(subnet_id=i)["valid-lifetime"] for i in (1500, 1501)] == [710, 720]
+            assert [require_subnet(subnet_id=i)["valid-lifetime"] for i in (1500, 1501)] == [710, 720]
             record(f"different-id-update-{iteration}", outcomes,
                    [get(subnet_id=i) for i in (1500, 1501)])
             outcomes = race(lambda: put(set_request(810)),
                             lambda: put(set_request(820), other))
-            assert get()["valid-lifetime"] in (810, 820)
+            assert require_subnet()["valid-lifetime"] in (810, 820)
             record(f"same-id-update-{iteration}", outcomes, get())
-            pool_a = [{"start": "198.25.0.10", "end": "198.25.0.20"}]
-            pool_b = [{"start": "198.25.0.30", "end": "198.25.0.40"}]
             outcomes = race(lambda: put(set_request(910, pool_a)),
                             lambda: put(set_request(920, pool_b), other))
-            final = get()
+            final = require_subnet()
             expected_pool = "198.25.0.10-198.25.0.20" if final["valid-lifetime"] == 910 \
                 else "198.25.0.30-198.25.0.40"
             record(f"pool-replace-{iteration}", outcomes, final)
@@ -262,7 +271,7 @@ def verify_multiprocess(args, directory, config, environment, authorization,
 
         for iteration in range(2):
             require_success(put(set_request(600, pool_a)))
-            baseline = get(read)
+            baseline = require_subnet(read)
             with row_gate(admin_argv, admin_environment):
                 first = executor.submit(put, set_request(1000, pool_b))
                 try:
@@ -276,7 +285,7 @@ def verify_multiprocess(args, directory, config, environment, authorization,
                 assert get(read) == baseline
                 assert next(row for row in listed(read) if row["id"] == 1500) == baseline
             outcomes = [future.result(timeout=8) for future in (first, second)]
-            final = get(read)
+            final = require_subnet(read)
             record(f"gated-omitted-pools-{iteration}", outcomes, final)
             assert any(response["result"] == 0 for response in outcomes), outcomes
             assert all(response["result"] in (0, 1) for response in outcomes), outcomes
@@ -415,7 +424,7 @@ def verify_multiprocess(args, directory, config, environment, authorization,
                           f"Content-Length: {len(payload)}\r\n\r\n")
                 caller.sendall(header.encode("ascii") + payload)
                 wait_writers()
-        until(lambda: get(read)["valid-lifetime"] == 1650,
+        until(lambda: require_subnet(read)["valid-lifetime"] == 1650,
               "Response-loss request did not commit")
         record("uncertain-http-outcome-reconciled", [], get(read))
         require_success(put(set_request(1600), other))

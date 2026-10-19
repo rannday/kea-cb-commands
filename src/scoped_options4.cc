@@ -3,6 +3,7 @@
 
 #include "option_support.h"
 
+#include <cstdint>
 #include <dhcpsrv/config_backend_dhcp4_mgr.h>
 #include <map>
 
@@ -13,8 +14,8 @@ using namespace isc::db;
 using namespace isc::dhcp;
 using namespace isc::config;
 using namespace option_support;
-enum class Scope { Network, Subnet, Pool };
-enum class Operation { List, Get, Set, Del };
+enum class Scope : std::uint8_t { Network, Subnet, Pool };
+enum class Operation : std::uint8_t { List, Get, Set, Del };
 
 // Range-only native writes have no subnet key. Cover every association partition,
 // including unassigned subnets; deduplicate IDs before examining physical pools.

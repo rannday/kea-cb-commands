@@ -1,3 +1,10 @@
+# Scripts run directly with their own directory on sys.path.
+[tool.basedpyright]
+include = ["tests", "scripts"]
+pythonVersion = "3.13"
+executionEnvironments = [{root = "tests"}, {root = "scripts"}]
+
+# Keep syntax compatible with the documented minimum supported Python.
 [tool.ruff]
 target-version = "py310"
 cache-dir = "build/cache/ruff"

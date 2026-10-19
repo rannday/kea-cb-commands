@@ -21,6 +21,17 @@ flags. Recreate virtual environments and CMake/Meson trees after relocating a
 checkout: caches, scripts and installed pkg-config metadata embed absolute paths.
 No Docker setup is required or supplied.
 
+Python scripts support Python 3.10+; the development type-checking target is
+Python 3.13. A uv-managed default works with the existing `python3` commands.
+Check `python3 --version` before running tooling: activating an older virtual
+environment overrides the shell default. Existing virtual environments retain
+their original interpreter until explicitly recreated.
+
+The integration runner passes its own interpreter to CMake so CTest does not
+reuse an older cached Python selection. For manual CMake configuration, add
+`-DPython3_EXECUTABLE="$(command -v python3)"` after changing interpreters.
+Changing the default does not migrate existing CMake caches or virtual environments.
+
 ## Generated output layout
 
 All new repository-local generated output belongs under ignored `build/`:

@@ -11,8 +11,9 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
-from control import command
+from control import Response, command
 
 DIAGNOSTIC = "db-commands-diagnostic"
 SUBNET_LIST = "cb-subnet4-list"
@@ -37,7 +38,7 @@ ADMISSION_ERROR = {"result": 1, "text": (
 
 def verify_denied(send):
     """All mutation entry points reject malformed input before backend access."""
-    mutations = {
+    mutations: dict[str, Any] = {
         "cb-subnet4-set": {"server-tag": "all", "subnet4": {
             "id": 900, "subnet": "198.18.0.0/24", "valid-lifetime": 600}},
         "cb-subnet4-del": {"id": 900, "server-tag": "all", "preserve-leases": True},
@@ -76,7 +77,7 @@ def verify_denied(send):
         assert send(name, arguments) != ADMISSION_ERROR, "Read command was gated"
 
 
-def require_success(response):
+def require_success(response: Response) -> Any:
     if response["result"] != 0:
         raise AssertionError(response)
     return response.get("arguments")
@@ -84,6 +85,7 @@ def require_success(response):
 
 def verify_argument_contracts(send):
     """Assert complete public error envelopes through the real command dispatch."""
+    arguments: Any  # Negative cases deliberately include malformed JSON values.
     cases = [
         ("cb-subnet4-get", None,
          "Expected one id or subnet selector and optional server-tag."),
@@ -227,7 +229,7 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
         return command(port, name, arguments, authorization=authorization)
 
     config_path = directory / "kea.json"
-    config = {
+    config: dict[str, Any] = {
         "Dhcp4": {
             "interfaces-config": {"interfaces": []},
             "lease-database": {"type": "memfile", "persist": False},
@@ -316,7 +318,7 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
                 verify_argument_contracts(send)
             for name in ("cb-subnet4-get", "cb-subnet4-del"):
                 assert name in names
-                arguments = {"id": 900}
+                arguments: Any = {"id": 900}
                 if name.endswith("-del"):
                     arguments.update({"server-tag": "all", "preserve-leases": True})
                 assert send(name, arguments)["text"] == (

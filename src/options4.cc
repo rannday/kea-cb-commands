@@ -11,7 +11,6 @@
 #include <dhcpsrv/parsers/dhcp_parsers.h>
 #include <dhcpsrv/parsers/option_data_parser.h>
 #include <map>
-#include <set>
 #include <sys/socket.h>
 
 namespace kea_db_commands {

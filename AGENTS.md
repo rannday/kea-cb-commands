@@ -84,6 +84,27 @@ Shared mutation/get/delete assertions live in `tests/mutation.py` and
 real DHCP DORA and lease checks. SQL and packet suites exercise both threading
 modes. See [PostgreSQL](docs/postgresql.md) and [MariaDB](docs/mysql.md) setup.
 
+## Python diagnostics for agents
+
+After Python changes, run both checks from the repository root:
+
+```bash
+basedpyright
+ruff check tests scripts
+```
+
+Use BasedPyright (the installed Pyright-derived type checker) for type errors,
+including optional values and invalid attributes; Ruff checks lint issues.
+Both use [pyproject.toml](pyproject.toml). Keep its execution environments and
+Python target; do not weaken diagnostic settings or add broad suppressions to
+make checks pass. Report errors and remaining warnings separately; a clean Ruff
+run does not establish type correctness. If a checker is unavailable, report
+the missing check without installing dependencies unless authorized.
+
+`scripts/quality.py` includes Ruff but does not run BasedPyright; run the latter
+explicitly. Static checks do not run tests. Honor an explicit request to defer
+tests and report that validation as deferred.
+
 ## C++ semantic tools for agents
 
 Use the project-local `clangd` MCP (`isaacphi/mcp-language-server`) first for

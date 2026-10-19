@@ -1,6 +1,7 @@
 """Run local C++ checks using the configured hook compilation database."""
 
 import argparse
+from collections.abc import Sequence
 import json
 from pathlib import Path
 import shlex
@@ -11,9 +12,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(command, **kwargs):
+def run(command: Sequence[str | Path], *, cwd: str | Path) -> None:
     print("+", shlex.join(str(arg) for arg in command), flush=True)
-    subprocess.run(command, check=True, **kwargs)
+    _ = subprocess.run(command, check=True, cwd=cwd)
 
 
 def main():

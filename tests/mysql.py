@@ -14,6 +14,8 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from collections.abc import Mapping
+from typing import Any
 
 from mutation import configure_admission, request, verify_mutations
 from lifecycle import verify_lifecycle
@@ -31,15 +33,15 @@ from postgresql import verify_complex
 from smoke import require_success
 
 
-def execute(argv, **kwargs):
+def execute(argv, *, input: bytes | None = None, env: Mapping[str, str] | None = None,
+            cwd: Path | None = None) -> bytes:
     """Keep database output private; error text can include credentials."""
-    content = kwargs.pop("input", None)
     with subprocess.Popen(
         [str(item) for item in argv], stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, **kwargs
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, env=env, cwd=cwd
     ) as process:
         try:
-            output, error = process.communicate(input=content, timeout=30)
+            output, error = process.communicate(input=input, timeout=30)
         except subprocess.TimeoutExpired:
             # An installer can spawn a bootstrap server; kill its whole group.
             os.killpg(process.pid, signal.SIGKILL)
@@ -80,7 +82,12 @@ def run_case(args, directory, multithreading):
                       f"--socket={database_socket}", "--user=root"]
 
         def sql(statement=None, file=None, database="kea_test", user=None):
-            content = file.read_bytes() if file else statement.encode("utf-8")
+            if file is not None:
+                content = file.read_bytes()
+            else:
+                if statement is None:
+                    raise ValueError("SQL statement or file required")
+                content = statement.encode("utf-8")
             return execute([args.mysql_bin, *connection, *([f"--user={user}"] if user else []),
                             "--batch", "--skip-column-names",
                             database], input=content, env=environment)
@@ -164,7 +171,7 @@ def run_case(args, directory, multithreading):
                 def send(name, arguments=None):
                     return command(port, name, arguments, authorization=authorization)
 
-                config = {"Dhcp4": {
+                config: dict[str, Any] = {"Dhcp4": {
                     "interfaces-config": {"interfaces": []},
                     "lease-database": {"type": "memfile", "persist": False},
                     "valid-lifetime": 600,

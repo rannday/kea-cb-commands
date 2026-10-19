@@ -2,6 +2,8 @@
 #ifndef KEA_DB_COMMANDS_BACKEND_SUPPORT_H
 #define KEA_DB_COMMANDS_BACKEND_SUPPORT_H
 
+#include <config.h>
+
 #include "command_support.h"
 
 #include <database/backend_selector.h>
@@ -16,6 +18,8 @@ template <typename Manager> auto backendPool() -> decltype(Manager::instance().g
     return Manager::instance().getPool();
 }
 
+// Error strings intentionally share a type so each command retains its contract.
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 inline isc::db::BackendSelector singleBackendSelector(bool pool_available,
                                                       const isc::dhcp::ConstSrvConfigPtr& config,
                                                       const char* missing_error,
@@ -37,6 +41,8 @@ inline isc::db::BackendSelector singleBackendSelector(bool pool_available,
     // successful read. Never aggregate the native pool's first-nonempty results.
     return isc::db::BackendSelector(isc::db::BackendSelector::stringToBackendType(type));
 }
+
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
 inline isc::data::ServerTag validatedServerTag(const std::string& text) {
     isc::data::ServerTag tag;

@@ -3,13 +3,14 @@
 # SPDX-License-Identifier: MPL-2.0
 import ipaddress
 import time
+from typing import Any
 
 from smoke import ADMISSION_ERROR, require_success, verify_denied
 
 
 def request(subnet_id=900, prefix="198.18.0.0/24", lifetime=600, tag="test-server",
-            pools=None):
-    arguments = {"server-tag": tag, "subnet4": {
+            pools=None) -> dict[str, Any]:
+    arguments: dict[str, Any] = {"server-tag": tag, "subnet4": {
         "id": subnet_id, "subnet": prefix, "valid-lifetime": lifetime}}
     if pools is not None:
         arguments["subnet4"]["pools"] = pools

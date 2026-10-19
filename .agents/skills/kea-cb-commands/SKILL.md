@@ -48,6 +48,27 @@ on the `KEA_DB_COMMANDS_RUNTIME_TESTS`, `KEA_DB_COMMANDS_POSTGRESQL_TESTS`,
 `KEA_DB_COMMANDS_MYSQL_TESTS` and `KEA_DB_COMMANDS_DHCP_TESTS` CMake options.
 Use the strict runner below to configure all four and refresh Kea discovery.
 
+## Python static checks
+
+For Python edits, run both the type checker and linter from the repository root:
+
+```bash
+basedpyright
+ruff check tests scripts
+```
+
+BasedPyright supplies Pyright type diagnostics, including optional-value and
+attribute errors. Ruff supplies lint diagnostics. Use the repository's
+[pyproject.toml](../../../pyproject.toml) configuration and execution environments.
+Do not weaken checking or add broad suppressions to clear diagnostics. Report
+error and warning counts separately, and report unavailable tools rather than
+installing them without authorization. Ruff success alone is insufficient.
+
+The quality gate below includes Ruff but does not invoke BasedPyright; run
+BasedPyright explicitly. These commands are static checks, separate from unit
+and integration tests. When the user defers tests, perform the static checks and
+report tests as deferred instead of running the suites below.
+
 ## Choose validation by subsystem
 
 - Documentation only: run the quality gate for Markdown, relative links and

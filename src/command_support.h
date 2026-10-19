@@ -46,6 +46,9 @@ inline isc::data::ConstElementPtr optionalField(const isc::data::ConstElementPtr
     return value;
 }
 
+// Required and optional names intentionally share a type; callers specify both
+// lists together as the command schema, in that order.
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 inline void requireFields(const isc::data::ConstElementPtr& map,
                           std::initializer_list<const char*> required,
                           std::initializer_list<const char*> optional, const char* error) {
@@ -70,6 +73,8 @@ inline void requireFields(const isc::data::ConstElementPtr& map,
         }
     }
 }
+
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
 inline void requireMutationAdmission() {
     if (!mutationsAllowed()) {

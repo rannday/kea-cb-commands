@@ -2,7 +2,7 @@
 #ifndef KEA_DB_COMMANDS_ARGUMENTS_H
 #define KEA_DB_COMMANDS_ARGUMENTS_H
 
-#include "command_support.h"
+#include <config.h>
 
 #include <cc/data.h>
 #include <dhcpsrv/subnet.h>

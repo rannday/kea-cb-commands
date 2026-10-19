@@ -2,6 +2,7 @@
 #include <config.h>
 
 #include "arguments.h"
+#include "command_support.h"
 
 #include <asiolink/addr_utilities.h>
 #include <dhcpsrv/pool.h>

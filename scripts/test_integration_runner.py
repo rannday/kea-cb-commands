@@ -12,10 +12,11 @@ import integration
 
 class ReportTests(unittest.TestCase):
     def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
+        # unittest calls setUp before each test; these are per-test fixtures.
+        self.directory: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory()  # pyright: ignore[reportUninitializedInstanceVariable]
         self.addCleanup(self.directory.cleanup)
-        self.report = Path(self.directory.name) / "results.xml"
-        self.suite = ET.Element("testsuite", tests="6", failures="0", skipped="0")
+        self.report: Path = Path(self.directory.name) / "results.xml"  # pyright: ignore[reportUninitializedInstanceVariable]
+        self.suite: ET.Element = ET.Element("testsuite", tests="6", failures="0", skipped="0")  # pyright: ignore[reportUninitializedInstanceVariable]
         for name in sorted(integration.EXPECTED_TESTS):
             ET.SubElement(self.suite, "testcase", name=name, status="run")
 
@@ -32,7 +33,9 @@ class ReportTests(unittest.TestCase):
             self.verify()
 
     def test_duplicate_test_fails(self):
-        self.suite[0].set("name", self.suite[1].get("name"))
+        name = self.suite[1].get("name")
+        assert name is not None
+        self.suite[0].set("name", name)
         with self.assertRaisesRegex(RuntimeError, "Expected exactly"):
             self.verify()
 

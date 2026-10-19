@@ -8,6 +8,7 @@
 #include <cc/command_interpreter.h>
 #include <cc/stamped_value.h>
 #include <cmath>
+#include <cstdint>
 #include <database/server.h>
 #include <dhcpsrv/cfgmgr.h>
 #include <dhcpsrv/config_backend_dhcp4_mgr.h>
@@ -50,7 +51,7 @@ ElementPtr countResult(const int64_t count) {
     return result;
 }
 
-enum class Operation { List, Get, Set, Del };
+enum class Operation : std::uint8_t { List, Get, Set, Del };
 
 int serverCommand(isc::hooks::CalloutHandle& handle, const Operation operation) {
     return commandBoundary(

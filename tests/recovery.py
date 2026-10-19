@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import socket
 import time
+from typing import Any
 
 from designated_writer import Role, desired, exchange, managed
 from reconciliation import RecoveryGate, classify, evidence, process_identity
@@ -20,7 +21,7 @@ def verify_recovery(args, directory, config, environment, authorization, snapsho
     mt = config["Dhcp4"]["multi-threading"]["enable-multi-threading"]
     output = args.work_dir.resolve().parent / "reconciliation-results"
     output.mkdir(exist_ok=True)
-    report = {"backend": backend, "packet-mt": mt, "status": "FAIL",
+    report: dict[str, Any] = {"backend": backend, "packet-mt": mt, "status": "FAIL",
               "observations": [], "dora": [], "scenarios": {}}
     roles = []
     consumers = {}
@@ -38,7 +39,7 @@ def verify_recovery(args, directory, config, environment, authorization, snapsho
         identities[name] = process_identity(role.process.pid)
         return role
 
-    def persisted():
+    def persisted() -> dict[str, Any]:
         # Deliberately narrow diagnostic SQL, not a production hook query.
         # Fixed projection preserves NULL versus empty and actual associations.
         if backend == "postgresql":
@@ -69,7 +70,7 @@ def verify_recovery(args, directory, config, environment, authorization, snapsho
         ownership = (writer is not None and writer.process.poll() is None and
                      sum(role.writer and role.process.poll() is None for role in roles) == 1)
         writer_evidence = None
-        if ownership:
+        if ownership and writer is not None:
             identity = process_identity(writer.process.pid)
             diagnostic = require_success(writer.send("db-commands-diagnostic"))
             status = require_success(writer.send("status-get"))
@@ -115,7 +116,7 @@ def verify_recovery(args, directory, config, environment, authorization, snapsho
 
     def record(name):
         result = gate.recover()
-        bounded = {"ownership": result["evidence"]["ownership"], "complete": True,
+        bounded: dict[str, Any] = {"ownership": result["evidence"]["ownership"], "complete": True,
                    "persisted": [projection(item) for item in
                                  result["evidence"]["persisted-evidence"]["data"]["native-all"]],
                    "intended": [managed(item) for item in intended], "consumers": {}}
@@ -135,7 +136,9 @@ def verify_recovery(args, directory, config, environment, authorization, snapsho
         report["scenarios"][name] = result["state"]
         assert gate.state["held"], "Incomplete evidence released hold"
         try:
-            gate.mutate(lambda: writer.send("cb-subnet4-set", desired(50)))
+            assert writer is not None
+            current_writer = writer
+            gate.mutate(lambda: current_writer.send("cb-subnet4-set", desired(50)))
         except RuntimeError:
             pass
         else:

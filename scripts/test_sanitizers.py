@@ -9,11 +9,12 @@ import sanitizers
 
 class SanitizerLogTests(unittest.TestCase):
     def setUp(self):
+        # unittest calls setUp before each test; these are per-test fixtures.
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        self.logs = Path(directory.name)
+        self.logs: Path = Path(directory.name)  # pyright: ignore[reportUninitializedInstanceVariable]
         (self.logs / "launches").write_text("123\n")
-        self.report = self.logs / "asan.123"
+        self.report: Path = self.logs / "asan.123"  # pyright: ignore[reportUninitializedInstanceVariable]
         self.report.write_text("AddressSanitizer Init done\n")
 
     def test_initialized_runtime_passes(self):

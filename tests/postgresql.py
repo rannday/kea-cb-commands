@@ -14,6 +14,8 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from collections.abc import Mapping
+from typing import Any
 
 from mutation import configure_admission, verify_mutations
 from lifecycle import verify_lifecycle
@@ -68,10 +70,10 @@ def verify_complex(result, expected_ids, tag):
     assert len(other["pools"]) == 1
 
 
-def execute(argv, **kwargs):
+def execute(argv, *, env: Mapping[str, str] | None = None, cwd: Path | None = None) -> bytes:
     """Never echo database/server output: upstream errors may contain secrets."""
     result = subprocess.run(
-        [str(item) for item in argv], capture_output=True, timeout=30, **kwargs
+        [str(item) for item in argv], capture_output=True, timeout=30, env=env, cwd=cwd
     )
     if result.returncode:
         state = re.search(rb"ERROR:\s+([0-9A-Z]{5})\s", result.stderr)
@@ -147,7 +149,7 @@ def run_case(args, directory, multithreading):
             def send(name, arguments=None):
                 return command(port, name, arguments, authorization=authorization)
 
-            config = {"Dhcp4": {
+            config: dict[str, Any] = {"Dhcp4": {
                 "interfaces-config": {"interfaces": []},
                 "lease-database": {"type": "memfile", "persist": False},
                 "valid-lifetime": 600,
