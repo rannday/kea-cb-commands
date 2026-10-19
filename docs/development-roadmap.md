@@ -13,11 +13,16 @@ OFFER/ACK checks verified global < shared-network < subnet < pool option
 precedence; membership persistence and active readback survived clean restart.
 Existing mutations and exact commercial compatibility remain unqualified.
 
-**Next: M28 — full DHCPv4 subnet and pool support.** Extend validated native
-construction and serialization without changing the minimal existing commands.
-Separate rich replacement from membership changes. Before enabling either,
-establish complete associations, preserved inherited options and dependencies,
-identity conflicts and exclusive-writer freshness. Keep unsafe operations refused.
+**M28 implementation: PARTIAL.** The existing subnet SET now accepts bounded
+native timers, boot fields, class restrictions and CIDR pools. A typed
+read–validate–merge–write preserves omitted supported attributes and pools;
+unsupported dependencies, shared-network membership and unsafe pool replacement
+remain refused. No commands or aliases are added. Full native replacement is
+still unavailable; see the [capability inventory](subnet4-capabilities.md).
+
+**Next: M29 — scoped options.** Establish exact parent identity, association and
+dependency evidence before adding writes; the richer M28 parser must not bypass
+existing refusals.
 Acceptance requires both SQL backends/threading modes, restart, explicit
 activation, SQL/audit-preserving refusals and real allocation. Do not make
 commercial aliases until request/response behavior is qualified.
@@ -258,11 +263,19 @@ Production readiness remains NO-GO.
 
 ### M28 — Full DHCPv4 subnets and pools
 
-Depends on M27. Six commands, full native subnet replacement, explicit shared
-network membership and embedded address pools. Acceptance covers rich-object
-round trips, inherited values, association changes, identity conflicts, pool
-replacement and real allocations. Existing minimal `cb-*` semantics remain
-unchanged, including omitted pools and retained leases on delete.
+Depends on M27. M28 extends the four existing subnet commands without adding
+commercial registrations. Delivered scope is timers, boot fields, subnet/pool
+classes and range/CIDR pools, with typed preservation on omission. Acceptance
+requires both SQL backends/threading modes, SQL/audit-preserving refusals,
+restart, explicit activation and packet-observed allocation/timers/boot fields.
+
+**Outcome: PARTIAL.** Complete replacement, membership changes, scoped-option
+preservation during mutation and the remaining native subnet attributes are
+not enabled. Existing pool classes prevent supplied-list replacement. Full
+readback equality and single-association checks bound accepted updates; there
+is no optimistic concurrency token. Retained leases and exclusive-writer
+requirements remain. Follow-up evidence is listed in the
+[dependency backlog](dependency-safety-backlog.md).
 
 ### M29 — DHCPv4 scoped options
 

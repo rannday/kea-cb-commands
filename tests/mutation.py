@@ -111,7 +111,7 @@ def verify_mutations(send, snapshot, sql, config, save, deny_association, restor
         arguments = request()
         arguments["server-tag"] = tag
         reject(arguments)
-    for field in ("option-data", "client-classes", "shared-network-name",
+    for field in ("option-data", "shared-network-name",
                   "user-context", "renew-timer", "rebind-timer", "unknown"):
         arguments = request()
         arguments["subnet4"][field] = []
@@ -131,10 +131,40 @@ def verify_mutations(send, snapshot, sql, config, save, deny_association, restor
         arguments = request()
         arguments["subnet4"]["pools"] = pools
         reject(arguments)
-    for field in ("pool", "option-data", "client-classes", "require-client-classes",
-                  "evaluate-additional-classes", "reservations", "excluded-addresses",
+    for field in ("pool", "option-data", "require-client-classes",
+                  "reservations", "excluded-addresses",
                   "user-context", "unknown"):
         reject(request(pools=[dict(valid_pool, **{field: []})]))
+    for field in ("client-classes", "evaluate-additional-classes"):
+        for value in (None, "class", [""], [1], ["duplicate", "duplicate"]):
+            arguments = request()
+            arguments["subnet4"][field] = value
+            reject(arguments)
+            reject(request(pools=[dict(valid_pool, **{field: value})]))
+    for field, values in (
+            ("renew-timer", (None, -1, True, "1", 2147483648, 4294967295, 600)),
+            ("rebind-timer", (None, -1, True, "1", 2147483648, 4294967295, 600)),
+            ("next-server", (None, 1, "::1", "invalid")),
+            ("server-hostname", (None, 1, "x" * 64)),
+            ("boot-file-name", (None, 1, "x" * 128))):
+        for value in values:
+            arguments = request()
+            arguments["subnet4"][field] = value
+            reject(arguments)
+    for field in ("renew-timer", "rebind-timer"):
+        arguments = request(lifetime=3000000000)
+        arguments["subnet4"][field] = 2147483648
+        reject(arguments)
+    arguments = request()
+    arguments["subnet4"].update({"renew-timer": 300, "rebind-timer": 200})
+    reject(arguments)
+    for prefix in ("198.18.0.1/28", "198.18.0.0/33", "::/64", "bad",
+                   "198.18.1.0/28", None):
+        reject(request(pools=[{"pool": prefix}]))
+    reject(request(pools=[{"pool": "198.18.0.0/28",
+                           "start": "198.18.0.1", "end": "198.18.0.2"}]))
+    reject(request(pools=[{"pool": "198.18.0.0/28"},
+                           {"pool": "198.18.0.0/28"}]))
     reject(request(prefix="0.0.0.0/0", pools=[pool("0.0.0.0", "0.0.0.10")]))
     reject(request(prefix="0.0.0.0/0", pools=[pool("0.0.0.0", "0.0.0.0")]))
     arguments = request()
@@ -163,21 +193,29 @@ def verify_mutations(send, snapshot, sql, config, save, deny_association, restor
         previous = stored().get(subnet_id, {"pools": []})
         expected_pools = arguments["subnet4"].get("pools")
         expected_ranges = (ranges(previous) if expected_pools is None else
-                           sorted(f"{item['start']} - {item['end']}"
-                                  for item in expected_pools))
+                           ranges({"pools": [{"pool": item["pool"]} if "pool" in item else
+                                              {"pool": f"{item['start']} - {item['end']}"}
+                                             for item in expected_pools]}))
         result = require_success(send("cb-subnet4-set", arguments))
         assert protected_rows() == before, "Write changed unrelated subnet configuration"
         assert result == dict(arguments, persisted=True, **{"activation-requested": False})
         row = stored()[arguments["subnet4"]["id"]]
         for key, value in arguments["subnet4"].items():
-            if key != "pools":
+            if key in ("client-classes", "evaluate-additional-classes"):
+                # Native serialization omits an empty class collection. Only
+                # these known optional lists treat omission as empty; nonempty
+                # values must still be returned exactly.
+                assert row.get(key, []) == value, (key, row, value)
+            elif key != "pools":
                 assert row[key] == value
         assert ranges(row) == expected_ranges, row
         assert row["option-data"] == []
         for item in row["pools"]:
             assert item.get("option-data", []) == []
-            assert item.get("client-classes", []) == []
-        assert row["renew-timer"] == row["rebind-timer"] == 0
+        for field in ("renew-timer", "rebind-timer", "next-server", "server-hostname",
+                      "boot-file-name", "client-classes", "evaluate-additional-classes"):
+            if field not in arguments["subnet4"] and field in previous:
+                assert row.get(field) == previous[field], (field, row, previous)
         return row
 
     assert 900 not in active()
@@ -186,13 +224,65 @@ def verify_mutations(send, snapshot, sql, config, save, deny_association, restor
     persist(request(pools=[pool("198.18.0.10", "198.18.0.10")]))
     persist(request(pools=[pool("198.18.0.32", "198.18.0.47")]))
     persist(request(pools=[valid_pool]))
+    rich = request(lifetime=1200, pools=[{"pool": "198.18.0.32/28",
+                                        "client-classes": ["pool-rich"],
+                                        "evaluate-additional-classes": ["pool-evaluate"]}])
+    rich["subnet4"].update({
+        "renew-timer": 200, "rebind-timer": 400, "next-server": "192.0.2.9",
+        "server-hostname": "m28-host", "boot-file-name": "m28.efi",
+        "client-classes": ["subnet-rich"], "evaluate-additional-classes": ["subnet-evaluate"]})
+    rich_row = persist(rich)
+    assert rich_row["pools"][0]["client-classes"] == ["pool-rich"]
+    assert rich_row["pools"][0]["evaluate-additional-classes"] == ["pool-evaluate"]
+    assert ranges(rich_row) == ["198.18.0.32 - 198.18.0.47"]
+    assert 900 not in active(), "Rich persistence unexpectedly activated configuration"
+    preserved = persist(request(lifetime=1500))
+    assert preserved["pools"] == rich_row["pools"]
+    for field in ("client-classes", "evaluate-additional-classes"):
+        assert preserved["pools"][0][field] == rich["subnet4"]["pools"][0][field]
+    reject(request(pools=[]))
+    reject(request(pools=[valid_pool]))
+    reject(request(pools=rich["subnet4"]["pools"]))
+    # Explicit empty subnet values clear only the named supported properties.
+    cleared = request(lifetime=1500)
+    cleared["subnet4"].update({
+        "renew-timer": 0, "rebind-timer": 0, "next-server": "0.0.0.0",
+        "server-hostname": "", "boot-file-name": "",
+        "client-classes": [], "evaluate-additional-classes": []})
+    persist(cleared)
+    # Pool classes cannot be removed through replacement: test-only fixture reset.
+    fixture("UPDATE dhcp4_pool SET client_classes=NULL, "
+            "evaluate_additional_classes=NULL WHERE subnet_id=900")
+    persist(request(pools=[valid_pool]))
+    # Unsupported min/max bounds cannot be silently collapsed by an update.
+    fixture("UPDATE dhcp4_subnet SET min_valid_lifetime=100 WHERE subnet_id=900")
+    try:
+        reject(request())
+    finally:
+        fixture("UPDATE dhcp4_subnet SET min_valid_lifetime=valid_lifetime "
+                "WHERE subnet_id=900")
+    # Pool-scoped options likewise prohibit omission, replacement and removal.
+    fixture("INSERT INTO dhcp4_options(code, formatted_value, space, scope_id, pool_id, "
+            "client_classes) SELECT 15, 'm28-pool.example', 'dhcp4', 5, id, '[]' FROM dhcp4_pool "
+            "WHERE subnet_id=900")
+    try:
+        reject(request())
+        reject(request(pools=[valid_pool]))
+        reject(request(pools=[]))
+    finally:
+        fixture("DELETE FROM dhcp4_options WHERE scope_id=5 AND pool_id IN "
+                "(SELECT id FROM dhcp4_pool WHERE subnet_id=900)")
     # Isolate pool attributes from rich subnet attributes in the original fixtures.
     for field, value in (("client_classes", '["pool-only"]'),
                          ("evaluate_additional_classes", '["pool-only"]'),
                          ("user_context", '{"pool-only":true}')):
         fixture(f"UPDATE dhcp4_pool SET {field}='{value}' WHERE subnet_id=900")
         try:
-            reject(request())
+            if field == "user_context":
+                reject(request())
+            else:
+                row = persist(request())
+                assert row["pools"][0][field.replace("_", "-")] == ["pool-only"]
             reject(request(pools=[valid_pool]))
             reject(request(pools=[]))
         finally:

@@ -40,7 +40,7 @@ retain exclusive-writer and uncertain-outcome recovery requirements.
 | Existing global-option update/delete | Selected native descriptor, payload, code/space, ordered client classes and observed tags | Exact descriptor identity and associations, class variants, SQL representation and audit effects | Complete ownership and dependency evidence; preserve payload bytes, flags, class restrictions and unrelated variants. Selected equality is insufficient. |
 | Existing shared-network update | Native network properties/options and reconstructed network tags; separate membership query | Complete associations, scoped options, member subnet identities and associations; round-trip of every replacement attribute | Construct a complete lossless replacement under an explicit supported contract. Pinned update replaces network options and associations; minimal creation input cannot safely stand in for an existing object. |
 | Existing shared-network delete | Named network with observed tags and backend-wide member subnets | Exact members, network options and all associations; detach/cascade and audit behavior | At minimum, a demonstrably empty, option-free, exclusively associated network under verified single-writer control, with native deletion qualified on both engines. M27 still refuses even this case; complete evidence and a separately tested contract are required. |
-| Add/move/remove subnet membership | Native subnet shared-network name; network membership API returns backend-wide members | Full original subnet/pools/scoped options and associations, source/destination network views and membership graph | Lossless subnet replacement, valid source/destination visibility for every affected consumer, preservation of associations/options/pools, and explicit activation/packet qualification. Current minimal subnet mutations intentionally refuse shared-network members. |
+| Add/move/remove subnet membership | Native subnet shared-network name; network membership API returns backend-wide members | Full original subnet/pools/scoped options and associations, source/destination network views and membership graph | Lossless subnet replacement, valid source/destination visibility for every affected consumer, preservation of associations/options/pools, and explicit activation/packet qualification. M28 bounded rich subnet mutations still refuse shared-network members. |
 
 ## Shared-network source findings
 
@@ -100,8 +100,29 @@ If native APIs cannot establish a required predicate, a contract assertion from
 the caller alone is insufficient. Keep the operation refused or pursue an
 upstream API extension. Do not add production SQL as a shortcut.
 
-Future membership support belongs with broader subnet representation in M28;
-network/subnet/pool option mutation belongs to M29. Neither milestone should
+Membership support remains deferred after M28's bounded subnet extension;
+network/subnet/pool option mutation belongs to M29. Neither path should
 silently unlock these cases through a richer parser alone. Consumer runtime
 observability and writer recovery remain a separate qualification workstream;
 M22's incomplete exact-equivalence evidence must remain visible.
+
+## M28 preservation findings and remaining gates
+
+The bounded subnet path now preserves native timers, boot fields and supported
+class lists when omitted. Full native serialization comparison rejects visible
+unsupported fields. Disposable SQL snapshots independently check unrelated rows
+and unchanged configuration/audit after refusals; this diagnostic evidence is
+not available as a production SQL shortcut.
+
+| Deferred operation | Evidence required before enabling |
+| --- | --- |
+| Replace classed pools | Explicit lossless replacement contract covering class restrictions, options and physical identity; fresh complete dependency evidence |
+| Update a subnet or pool with scoped options | Native serialization plus complete option/association/dependency visibility and preservation tests; current readback alone is insufficient |
+| Update a shared-network member or move/detach it | Selected network/subnet association compatibility, full inherited settings and membership preservation; current whole-subnet writes remain refused |
+| Accept other SQL-backed subnet attributes | Typed validation, both-driver bindings/readback qualification and supported-field reconstruction with negative SQL/audit assertions |
+| Optimistic concurrent update | An atomic expected-revision precondition in the public native mutation API; timestamps/audit reads alone do not provide it |
+
+M28 does not unlock existing server/global/definition/global-option or network
+updates/deletes. Their earlier evidence gaps remain. M29 should first establish
+scope-specific option identity, association and dependency contracts, then add
+safe native scoped-option operations without weakening these refusals.

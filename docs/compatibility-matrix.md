@@ -1,5 +1,16 @@
 # Commercial command compatibility matrix
 
+## M28 bounded subnet extension
+
+M28 is **PARTIAL**: the existing subnet SET accepts native timers, boot fields,
+subnet/pool classes and CIDR pools, preserving omitted supported attributes.
+Membership, scoped options and unsupported existing fields still prevent updates.
+Existing pool class restrictions refuse supplied-list replacement. No new commands
+or aliases are registered. Functional counts remain **3 implemented, 18 partial,
+53 missing** of 74; exact compatibility remains **0 implemented, 0 partial,
+74 missing**. See the [capability inventory](subnet4-capabilities.md) and
+[dependency backlog](dependency-safety-backlog.md).
+
 ## M27 implementation update
 
 M27 is **PARTIAL**. Four project-specific `cb-shared-network4-list/get/set/del`
@@ -259,8 +270,11 @@ SET returns id/subnet; DEL returns count and deletes the whole subnet identity,
 not a tag-local version. SET is replacement, not patch: omitted fields become
 unspecified. Validate complete family syntax, inheritance, pools, prefix/ID
 collisions, dependencies and association changes.
-Current cb SET preserves omitted pools and refuses rich existing objects,
-so it cannot serve as a remote SET alias.
+M28 cb SET preserves omitted supported attributes/pools and accepts a bounded
+rich standalone model (timers, boot fields and class restrictions). Unsupported
+dependencies and shared-network members remain refused. This merge contract
+cannot serve as a replacement-style remote SET alias. See the
+[subnet capability inventory](subnet4-capabilities.md).
 
 ### Client class (CL)
 

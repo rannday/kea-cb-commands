@@ -13,7 +13,7 @@ registers twenty-five IPv4-only commands; `commands.cc` retains command-specific
 and explicit mutation admission. Header-only `command_support.h` shares request
 extraction, required/optional field checks, safe errors and response publication.
 `backend_support.h` shares typed per-invocation manager access, single-backend
-selection and server selectors. `arguments.cc` validates minimal subnet/pool
+selection and server selectors. `arguments.cc` validates bounded native subnet/pool
 requests; `subnet4.cc` retains native CRUD and subnet safety policy.
 `records4.cc` contains the M25 server/scalar-global handlers using the same
 request, exception and backend helpers. Mutation admission is explicit at each
@@ -127,7 +127,7 @@ Prove that command parsing leaves unrelated staging and active configuration
 unchanged, including on exceptions, before reuse.
 
 Keep full-object commercial replacement semantics separate from the existing
-minimal `cb-subnet4-set` pool-preservation behavior. Preserve explicit shared
+bounded `cb-subnet4-set` attribute/pool-preservation behavior. Preserve explicit shared
 network membership, class order/dependencies and all meaningful option fields.
 Parent deletion and option-definition force deletion need operation-specific
 dependency checks. Native method availability is insufficient proof of those
@@ -252,3 +252,24 @@ compound-global encoding using pinned native APIs and disposable SQL tests.
 Fixtures and commercial envelopes remain family-specific. M24 creates no
 commercial registrations, activates no configuration and does not establish
 DHCPv6 runtime or database compatibility.
+
+## M28 bounded subnet preservation
+
+`arguments.cc` owns typed native construction and `preserveSubnet4`. The latter
+reconstructs the whitelisted stored fields, compares the complete native
+serialization, then applies only explicitly supplied optional fields and
+revalidates. This is deliberately not a general JSON merge or a complete SQL
+reconciliation mechanism. `subnet4.cc` retains fresh ANY conflict reads,
+association and membership checks and the sole native write. Mutation admission
+remains in the existing callout boundary; no registration or response envelope
+changes.
+
+Supported extensions are timers, boot parameters, native class lists and pool
+CIDR notation. Omitted supported fields survive updates. Unsupported options,
+context and shared-network membership refuse the write; replacing a classed pool
+list is refused. Native replacement recreates physical pool IDs and timestamps.
+There is no public atomic revision guard, so exclusive designated ownership
+remains necessary. See the [capability and preservation inventory](subnet4-capabilities.md)
+and [dependency backlog](dependency-safety-backlog.md). Scoped option handlers
+in M29 must establish their own dependency evidence and cannot bypass these
+whole-subnet safeguards.

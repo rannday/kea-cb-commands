@@ -23,7 +23,7 @@ flowchart LR
 ```
 
 All subnet commands use the native DHCPv4 pool and sole configured backend's
-type. PostgreSQL and MariaDB reads and minimal subnet writes are runtime-verified
+type. PostgreSQL and MariaDB reads and bounded subnet writes are runtime-verified
 with the same hook code. SQL persistence and native pull/reload activation are
 separate operations; the hook never initiates activation.
 
@@ -80,11 +80,15 @@ omits membership and inherited settings. Kea owns reconnect callbacks; no hook
 retry loop is introduced. See [the command contract](postgresql.md) and
 [verified upstream behavior](backend-behavior.md).
 
-The set command validates an explicit tag and minimal native subnet, reads by
-ID and prefix using `ANY` to detect hidden conflicts, refuses richer existing
-objects or association changes, constructs optional native `Pool4` ranges,
-preserves basic stored pools when omitted, and delegates one write to
-`createUpdateSubnet4`. Native drivers own transaction rollback and audit. The
+The set command validates an explicit tag and bounded native subnet, reads by
+ID and prefix using `ANY` to detect hidden conflicts, and rejects membership or
+association changes. M28 reconstructs supported native attributes and compares
+the complete native serialization before merging explicitly supplied fields.
+Omitted attributes and pools are preserved; unsupported fields and existing
+pool class restrictions on replacement refuse the write. Native `Pool4` objects
+validate ranges, CIDRs and supported class lists. It delegates one write to
+`createUpdateSubnet4`; see the [capability inventory](subnet4-capabilities.md).
+Native drivers own transaction rollback and audit. The
 hook neither issues SQL nor constructs a private backend. Write failures are
 never retried; uncertain commit outcomes require reconciliation. See the
 [exact contract and consistency limits](commands.md).

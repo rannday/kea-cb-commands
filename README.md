@@ -66,7 +66,7 @@ unchanged.
 | `cb-global-parameter4-list/get/set/del` | Read selected globals; create bounded scalars; refuse existing update/delete |
 | `cb-subnet4-list` | List native subnet configuration; accepts absent or empty arguments |
 | `cb-subnet4-get` | Retrieve one subnet by ID or canonical IPv4 prefix |
-| `cb-subnet4-set` | Persist one minimal standalone subnet and optional basic address pools |
+| `cb-subnet4-set` | Persist a bounded rich standalone subnet; preserve omitted attributes and pools |
 | `cb-subnet4-del` | Delete one subnet with an explicit tag and `preserve-leases: true` |
 | `db-commands-diagnostic` | Check backend pool API accessibility without testing database connectivity |
 
@@ -204,9 +204,12 @@ Follow the required exclusive-writer policy and reconcile uncertain write outcom
 before retrying. See [lifecycle safety](docs/subnet-lifecycle.md) and
 [mutation consistency](docs/commands.md).
 
-Set supports minimal standalone subnets and basic IPv4 ranges. Omitted pools
-preserve stored basic pools; supplied pools replace them, and an empty list
-clears them. Richer existing objects and unsafe server associations are rejected.
+M28 adds renew/rebind timers, boot parameters, client-class restrictions and
+prefix-style pools. Omitted optional attributes and pools preserve supported
+stored values. Supplied pools replace the list only when existing pools have no
+class restrictions; `[]` has the same safety gate. Scoped options, shared-network
+members, unsupported attributes and unsafe associations still prevent updates.
+See the [subnet capability inventory](docs/subnet4-capabilities.md).
 List rejects shared-network subnets to avoid incomplete results.
 MariaDB needs write grants to prepare native statements even for list operations;
 PostgreSQL supports the tested SELECT-only account.

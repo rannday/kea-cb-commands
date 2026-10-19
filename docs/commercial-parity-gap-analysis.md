@@ -1,5 +1,16 @@
 # Commercial parity gap analysis
 
+## M28 bounded subnet extension
+
+M28 is **PARTIAL**: the existing subnet SET accepts native timers, boot fields,
+subnet/pool classes and CIDR pools, preserving omitted supported attributes.
+Membership, scoped options and unsupported existing fields still prevent updates.
+Existing pool class restrictions refuse supplied-list replacement. No new commands
+or aliases are registered. Functional counts remain **3 implemented, 18 partial,
+53 missing** of 74; exact compatibility remains **0 implemented, 0 partial,
+74 missing**. See the [capability inventory](subnet4-capabilities.md) and
+[dependency backlog](dependency-safety-backlog.md).
+
 ## M27 implementation update
 
 M27 is **PARTIAL**. Four project-specific `cb-shared-network4-list/get/set/del`
@@ -112,9 +123,9 @@ register exactly five commands.
 | Diagnostic | Pool API accessibility and local mutation admission | No commercial analogue; not connectivity/ownership evidence |
 | cb-subnet4-list | Native full subnet serialization from sole backend; rejects shared-network subnets | Commercial list is a summary with association metadata and explicit selectors |
 | cb-subnet4-get | One ID or canonical v4 prefix, optional tag | Different request/response; no full shared-network/inheritance contract |
-| cb-subnet4-set | One minimal standalone subnet, optional basic address pools | Full replacement, richer fields, associations and commercial envelopes absent |
+| cb-subnet4-set | Bounded rich standalone subnet; timers, boot fields, classes, range/CIDR pools; omitted supported attributes preserved | Full replacement, membership, scoped options, remaining native attributes and commercial envelopes absent |
 | cb-subnet4-del | Explicit tag, single exact association, preserve-leases true | Commercial deletion has database-wide identity and no tag selector |
-| Pools | Basic ranges inside subnet SET; omission preserves, supplied list replaces, empty clears | No standalone commercial pool CRUD; full subnet and scoped option functionality missing |
+| Pools | Range/CIDR and classes inside subnet SET; omission preserves; replacement refuses existing class restrictions | No standalone commercial pool CRUD; scoped options and full lossless replacement remain missing |
 | DHCPv6 | No load support, manager access, handlers or packet fixture | All 38 commands missing |
 | Other v4 families | No handlers | Servers/globals/definitions/options/networks/classes missing |
 

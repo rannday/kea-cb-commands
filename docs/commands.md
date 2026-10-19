@@ -433,7 +433,9 @@ Send through Kea's native control channel:
 
 `server-tag` and `subnet4` are required and are the only top-level argument
 fields. `subnet4` is one map, not an array: `id`, `subnet`, and `valid-lifetime`
-are required; `pools` is optional. Unknown fields are errors even when empty.
+are required. Optional fields are `pools`, `renew-timer`, `rebind-timer`,
+`next-server`, `server-hostname`, `boot-file-name`, `client-classes` and
+`evaluate-additional-classes`. Unknown fields are errors even when empty.
 There are no defaults taken from active server globals or shared networks.
 
 - `id` and `valid-lifetime` must be JSON integers in `1..4294967294`. Booleans,
@@ -444,13 +446,24 @@ There are no defaults taken from active server globals or shared networks.
   native `ServerTag` validates its remaining constraints (1..256 characters,
   reserved `any` rejected). A named server must already exist. Reserved `all`
   selects the native universal association. The command creates no server record.
-- `pools`, when present, is a list of maps containing exactly the string fields
-  `start` and `end`. Each pair must form a valid IPv4 range inside the subnet.
-  Kea validates range order, subnet membership and overlap, including duplicates.
-  IPv6, malformed structures, unsupported pool fields and `0.0.0.0` endpoints
-  are rejected. Native SQL reads omit a range with a zero endpoint; rejecting it
-  prevents silent loss on reconstruction. Options, classes, reservations,
-  exclusions and allocation policies are unsupported.
+- `renew-timer` and `rebind-timer` are integers in `0..2147483647` (the
+  cross-backend signed SQL limit). Nonzero values must be below valid lifetime;
+  when both are nonzero renewal must not exceed rebinding. Zero is unspecified.
+- `next-server` is an IPv4 string. `server-hostname` and `boot-file-name` are
+  strings without NUL, limited to 63 and 127 bytes respectively. Empty strings
+  clear boot strings; `0.0.0.0` clears next-server.
+- `client-classes` and `evaluate-additional-classes` are lists of distinct,
+  nonempty strings without NUL. Empty lists clear these restrictions. Defining
+  or ordering client classes is outside this command.
+- `pools`, when present, is a list of maps. Use either string `start` and `end`
+  or one canonical IPv4 CIDR string `pool`; do not mix the forms. Each range
+  must lie inside the subnet. Kea validates order, containment and overlap,
+  including duplicates. Each pool may also contain `client-classes` and
+  `evaluate-additional-classes` under the same list rules. Prefix notation
+  normalizes to an address range; notation and SQL pool IDs are not preserved.
+  IPv6, unknown fields and zero endpoints are rejected: native SQL reads omit
+  zero-endpoint pools. Pool options, context and other pool attributes remain
+  unsupported for writes.
 - Exactly one SQL backend must appear in active `config-control`; its native
   type must be `postgresql` or `mysql`. No per-command backend selector exists.
 
@@ -490,20 +503,28 @@ The ID identifies the object. An absent ID creates it; an existing ID updates
 its prefix, lifetime and pool collection only when its stored configuration has
 exactly the supported native representation and exactly the requested server
 association.
-The hook compares native serialization against a minimal `Subnet4` baseline,
-with renew/rebind timers zero and basic address pools only. Pool-level options,
-classes, context and other extra settings are refused along with richer subnet
-settings.
-An existing richer object is rejected, including when unsupported values would
-otherwise be overwritten by Kea's whole-object update. This is replacement of
-a supported object, not a general merge or patch command.
+The hook reconstructs the supported native subnet and pool attributes from a
+fresh read and compares the complete native serialization with that bounded
+reconstruction. Any difference refuses the write. Subnet/pool options, context,
+unsupported lifetimes, relay and other attributes therefore remain protected;
+shared-network membership is refused before reconstruction. This check does not
+claim native serialization exposes every SQL dependency.
+
+Required ID, prefix and lifetime come from the request. Omitted supported optional
+attributes preserve stored values; supplied values replace them after validation.
+On creation omitted values use native constructor defaults. Null is rejected for
+all accepted fields. This is a typed, bounded merge, not a generic JSON patch.
+The legacy unknown-subnet-field error text remains unchanged for compatibility.
+See the [capability inventory](subnet4-capabilities.md) for the SQL/readback limits.
 
 Omitting `pools` on an existing subnet preserves its pools from a fresh native
 backend read. Omitting it on creation creates no pools. If preserved pools do not
 fit a changed prefix, the request fails; supply an explicit replacement list.
 An explicit nonempty list replaces the whole pool collection. An explicit `[]`
-removes all pools. Rich existing objects remain protected even when a replacement
-list is supplied. No pool-level mutation command is added.
+removes all pools only when safe. Any existing pool with class restrictions
+refuses a supplied replacement list, even an identical list or `[]`; omission
+preserves these classes. Existing scoped options or unsupported attributes refuse
+the entire update, including omitted pools. No pool-level command is added.
 
 A prefix owned by another ID is rejected, even if that object is associated
 with another server or unassigned. Unassigned and multiply associated existing
@@ -524,7 +545,9 @@ The hook calls `ConfigBackendPoolDHCPv4::createUpdateSubnet4` once. Both native
 drivers wrap the subnet, its pools, associations and audit records in one
 transaction.
 The drivers delete old pools on update and insert the supplied collection; the
-hook explicitly copies stored basic pools when the field is omitted.
+hook explicitly reconstructs supported stored pools when the field is omitted.
+Physical pool IDs and pool modification timestamps are regenerated by native
+replacement; they are not stable identities or optimistic concurrency tokens.
 Tests force an association INSERT failure after a subnet INSERT or UPDATE and
 compare every official table before/after: both engines roll back the subnet,
 association changes and audit records. Sequence/auto-increment counters can

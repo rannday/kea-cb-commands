@@ -124,8 +124,7 @@ isc::data::ConstElementPtr setSubnet(const isc::data::ConstElementPtr& arguments
                                            "server-tag must be an explicit string.");
     const auto tag = validatedServerTag(tag_element->stringValue());
     const auto input = arguments->get("subnet4");
-    const auto subnet = parseSubnet4(input);
-    const auto pools = input->get("pools");
+    auto subnet = parseSubnet4(input);
     const auto pool = backendPool<ConfigBackendDHCPv4Mgr>();
     const auto backend =
         singleBackendSelector(bool(pool), CfgMgr::instance().getCurrentCfg(),
@@ -148,30 +147,7 @@ isc::data::ConstElementPtr setSubnet(const isc::data::ConstElementPtr& arguments
         if (tags.size() != 1 || tags.begin()->get() != tag.get()) {
             throw ContractError("Updating subnet server associations is unsupported.");
         }
-        const auto baseline = Subnet4::create(
-            existing->get().first, existing->get().second, 0, 0,
-            existing->getValid(isc::dhcp::Network::Inheritance::NONE), existing->getID());
-        for (const auto& stored_pool : existing->getPools(Lease::TYPE_V4)) {
-            // Comparing against basic native pools rejects pool options, classes,
-            // context and other unsupported settings before whole-object writes.
-            baseline->addPool(
-                Pool4::create(stored_pool->getFirstAddress(), stored_pool->getLastAddress()));
-        }
-        if (!existing->getSharedNetworkName().empty() ||
-            !existing->toElement()->equals(*baseline->toElement())) {
-            throw ContractError(
-                "Existing subnet contains unsupported configuration; update refused.");
-        }
-        if (!pools) {
-            try {
-                for (const auto& stored_pool : existing->getPools(Lease::TYPE_V4)) {
-                    subnet->addPool(stored_pool);
-                }
-            } catch (...) {
-                throw ContractError(
-                    "Existing pools do not fit the requested subnet; supply replacement pools.");
-            }
-        }
+        subnet = preserveSubnet4(input, existing);
     }
     // The native backend owns the transaction, audit revision and rollback.
     // Preflight reads are not locked against independent external writers.

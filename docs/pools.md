@@ -15,9 +15,11 @@ An explicit empty collection uses the same transactional replacement path.
 
 Native reads reconstruct pools and their richer attributes, including options,
 classes and context (PostgreSQL lines 571–600; MySQL lines 676–703). This command
-will admit basic address ranges only and retain the existing richer-object
-refusal, so updates cannot silently strip unsupported settings. Preservation
-uses a fresh backend read, never active runtime configuration. The existing
+accepts bounded ranges or canonical CIDR notation and native class lists in M28.
+Omitted pools preserve supported attributes; any supplied replacement is refused
+when existing pools have class restrictions. Options, context and other unsupported
+attributes still refuse updates. Preservation uses a fresh backend read, never
+active runtime configuration. The existing
 exclusive-writer requirement still applies: the public API offers no lock or
 compare-and-swap spanning preflight reads and mutation.
 
@@ -38,12 +40,16 @@ implementation and verification below and in [commands.md](commands.md).
 
 ## Implemented contract
 
-`subnet4.pools` is optional. Each entry contains exactly `start` and `end`
-IPv4 address strings. A supplied list replaces the whole collection; `[]`
-removes it. Omission preserves pools from a fresh native backend read, or
-creates an empty collection for a new subnet. Prefix changes that cannot contain
-preserved pools fail before mutation. Existing richer subnet/pool settings,
-shared networks and ambiguous server associations remain protected from writes.
+`subnet4.pools` is optional. Each entry supplies either `start` and `end`
+IPv4 address strings or canonical prefix notation in `pool`, optionally with
+`client-classes` and `evaluate-additional-classes` lists. A supplied list replaces
+the collection, including `[]`, only when preservation preconditions pass.
+Omission preserves supported pools from a fresh native read, or creates an empty
+collection for a new subnet. Prefix changes must contain preserved pools.
+Existing pool class restrictions refuse replacement; scoped options, context,
+unsupported attributes, shared networks and ambiguous associations remain
+protected from writes. See the [M28 capability inventory](subnet4-capabilities.md)
+for the complete bounded reconstruction and comparison policy.
 
 The hook constructs `Pool4` objects and calls `Subnet4::addPool`, using native
 address-family, ordering, membership and overlap checks. Duplicate ranges,
