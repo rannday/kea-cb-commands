@@ -41,6 +41,18 @@ int optionGlobal4List(isc::hooks::CalloutHandle& handle);
 int optionGlobal4Get(isc::hooks::CalloutHandle& handle);
 int optionGlobal4Set(isc::hooks::CalloutHandle& handle);
 int optionGlobal4Del(isc::hooks::CalloutHandle& handle);
+int optionNetwork4List(isc::hooks::CalloutHandle& handle);
+int optionNetwork4Get(isc::hooks::CalloutHandle& handle);
+int optionNetwork4Set(isc::hooks::CalloutHandle& handle);
+int optionNetwork4Del(isc::hooks::CalloutHandle& handle);
+int optionSubnet4List(isc::hooks::CalloutHandle& handle);
+int optionSubnet4Get(isc::hooks::CalloutHandle& handle);
+int optionSubnet4Set(isc::hooks::CalloutHandle& handle);
+int optionSubnet4Del(isc::hooks::CalloutHandle& handle);
+int optionPool4List(isc::hooks::CalloutHandle& handle);
+int optionPool4Get(isc::hooks::CalloutHandle& handle);
+int optionPool4Set(isc::hooks::CalloutHandle& handle);
+int optionPool4Del(isc::hooks::CalloutHandle& handle);
 } // namespace kea_db_commands
 
 #endif

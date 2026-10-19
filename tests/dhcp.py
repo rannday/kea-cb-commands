@@ -166,20 +166,19 @@ def _pools(row):
 
 
 def _verify_shared_network_inheritance(send, config, directory, snapshot, sql, expected):
-    """Diagnostic SQL fixtures qualify native activation, not hook membership writes."""
+    """Native scoped writes; diagnostic membership only; real OFFER/ACK evidence."""
     network = "m27-packet"
     result = require_success(send("cb-shared-network4-set", {
         "server-tag": "test-server", "shared-network": {"name": network}}))
     assert result["activation-requested"] is False
     backend = config["Dhcp4"]["config-control"]["config-databases"][0]["type"]
-    if backend == "postgresql":
-        prefix = ("BEGIN; SELECT createAuditRevisionDHCP4(CURRENT_TIMESTAMP, "
-                  "'all', 'M27 packet inheritance fixture', false); ")
-        persistent = "true"
-    else:
-        prefix = ("START TRANSACTION; CALL createAuditRevisionDHCP4(CURRENT_TIMESTAMP, "
-                  "'all', 'M27 packet inheritance fixture', 0); ")
-        persistent = "1"
+    prefix = (
+        "BEGIN; SELECT createAuditRevisionDHCP4(CURRENT_TIMESTAMP, "
+        "'all', 'M29 packet membership fixture', false); "
+        if backend == "postgresql" else
+        "START TRANSACTION; CALL createAuditRevisionDHCP4(CURRENT_TIMESTAMP, "
+        "'all', 'M29 packet membership fixture', 0); "
+    )
 
     def diagnostic(statements):
         sql(prefix + statements + "; COMMIT")
@@ -200,13 +199,27 @@ def _verify_shared_network_inheritance(send, config, directory, snapshot, sql, e
     def domain(row):
         return {option["code"]: option for option in row.get("option-data", [])}[15]["data"]
 
+    def create(scope, parent):
+        before = require_success(send("config-get"))
+        for code, value in ((15, f"m29-{scope}.example"), (224, f"m29-{scope}-custom")):
+            response = require_success(send(f"cb-option4-{scope}-set", {
+                "server-tag": "test-server", "parent": parent,
+                "option": {"code": code, "space": "dhcp4", "data": value,
+                           "always-send": True}}))
+            assert response["activation-requested"] is False
+        assert require_success(send("config-get")) == before
+
+    def scoped(scope):
+        values = dict(expected)
+        values.update({15: f"m29-{scope}.example".encode(),
+                       224: f"m29-{scope}-custom".encode()})
+        return values
+
     before = require_success(send("config-get"))
     diagnostic(
         f"UPDATE dhcp4_subnet SET shared_network_name='{network}', "
-        f"modification_ts=CURRENT_TIMESTAMP WHERE subnet_id={SUBNET_ID}; "
-        "INSERT INTO dhcp4_options(code, formatted_value, space, persistent, "
-        "scope_id, shared_network_name, client_classes) VALUES "
-        f"(15, 'm27-network.example', 'dhcp4', {persistent}, 4, '{network}', '[]')")
+        f"modification_ts=CURRENT_TIMESTAMP WHERE subnet_id={SUBNET_ID}")
+    create("network", {"shared-network-name": network})
     assert require_success(send("config-get")) == before
     packet(expected)
     persisted = require_success(send("cb-shared-network4-get", {
@@ -220,38 +233,28 @@ def _verify_shared_network_inheritance(send, config, directory, snapshot, sql, e
 
     require_success(send("config-reload"))
     row, member = runtime()
-    assert domain(row) == "m27-network.example"
+    assert domain(row) == "m29-network.example"
     assert all(option["code"] != 15 for option in member.get("option-data", []))
-    network_options = dict(expected)
-    network_options[15] = b"m27-network.example"
-    packet(network_options)
+    packet(scoped("network"))
 
-    diagnostic(
-        "INSERT INTO dhcp4_options(code, formatted_value, space, persistent, "
-        "scope_id, dhcp4_subnet_id, client_classes) VALUES "
-        f"(15, 'm27-subnet.example', 'dhcp4', {persistent}, 1, {SUBNET_ID}, '[]')")
+    create("subnet", {"subnet-id": SUBNET_ID})
+    packet(scoped("network"))
     require_success(send("config-reload"))
     row, member = runtime()
-    assert domain(row) == "m27-network.example"
-    assert domain(member) == "m27-subnet.example"
-    subnet_options = dict(expected)
-    subnet_options[15] = b"m27-subnet.example"
-    packet(subnet_options)
+    assert domain(row) == "m29-network.example"
+    assert domain(member) == "m29-subnet.example"
+    packet(scoped("subnet"))
 
-    diagnostic(
-        "INSERT INTO dhcp4_options(code, formatted_value, space, persistent, scope_id, "
-        "pool_id, client_classes) SELECT 15, 'm27-pool.example', 'dhcp4', "
-        f"{persistent}, 5, id, '[]' FROM dhcp4_pool WHERE subnet_id={SUBNET_ID}")
+    create("pool", {"subnet-id": SUBNET_ID, "start": "127.0.0.10", "end": "127.0.0.29"})
+    packet(scoped("subnet"))
     require_success(send("config-reload"))
     _, member = runtime()
-    assert domain(member["pools"][0]) == "m27-pool.example"
-    pool_options = dict(expected)
-    pool_options[15] = b"m27-pool.example"
-    packet(pool_options)
+    assert domain(member["pools"][0]) == "m29-pool.example"
+    packet(scoped("pool"))
 
-    # Return the original minimal standalone subnet to later pool/delete tests.
+    # Diagnostic cleanup only: production existing-option deletion stays refused.
     diagnostic(
-        "DELETE FROM dhcp4_options WHERE code=15 AND space='dhcp4' AND "
+        "DELETE FROM dhcp4_options WHERE code IN (15,224) AND space='dhcp4' AND "
         f"((scope_id=4 AND shared_network_name='{network}') OR "
         f"(scope_id=1 AND dhcp4_subnet_id={SUBNET_ID}) OR "
         f"(scope_id=5 AND pool_id IN (SELECT id FROM dhcp4_pool "
@@ -262,9 +265,9 @@ def _verify_shared_network_inheritance(send, config, directory, snapshot, sql, e
     assert _pools(_subnets(send, "config-get")[SUBNET_ID]) == [
         ("127.0.0.10", "127.0.0.29")]
     packet(expected)
-    print("PASS: diagnostic shared-network membership requires explicit activation; "
-          "nested runtime membership and global < network < subnet < pool domain-option "
-          "precedence verified in actual OFFER/ACK; router/DNS/custom and BOOTP preserved")
+    print("PASS: M29 native scoped options stay inactive until explicit activation; "
+          "global < network < subnet < pool domain/custom precedence in actual "
+          "OFFER/ACK; router/DNS/boot preserved; membership fixture diagnostic only")
 
 
 def _verify_rich_subnet(send, directory, snapshot, sql):
@@ -342,7 +345,7 @@ def verify_dhcp(send, config, save, directory, snapshot, sql=None):
 
     The caller owns the Kea process, disposable SQL backend, namespace, and all
     cleanup. Optional SQL creates disposable diagnostic membership/option fixtures;
-    production commands never perform membership or scoped-option SQL writes.
+    production commands never perform direct SQL or membership mutations.
     """
     _isolated()
     lease_path = Path(directory).resolve() / "leases.csv"

@@ -1,5 +1,93 @@
 # DHCPv4 configuration commands
 
+## M29: scoped DHCPv4 options
+
+Twelve project-specific commands use pinned Kea 3.2.1 native APIs. For each
+scope `network`, `subnet`, and `pool`, commands are
+`cb-option4-<scope>-list`, `cb-option4-<scope>-get`,
+`cb-option4-<scope>-set`, and `cb-option4-<scope>-del`.
+They are not commercial aliases. The documented commercial inventory contains
+only `remote-option4-{network,subnet,pool}-{set,del}`; the six project read
+commands add functionality without inventing commercial inventory entries.
+
+Every request requires `server-tag` and a `parent` map. Non-list requests also
+require one `option` map. Unknown fields and wrong types fail. Exactly one
+configured SQL backend is required. Tags use native `ALL()` for `all` and
+`ONE(tag)` otherwise; a named server must exist. `any` is not a request tag.
+
+| Scope | Exact parent fields |
+| --- | --- |
+| network | `shared-network-name`: nonempty string, at most 128 bytes, no NUL or leading/trailing whitespace |
+| subnet | `subnet-id`: integer 1..4294967294 |
+| pool | `subnet-id`, `start`, `end`: exact existing range, canonical IPv4 strings with start <= end |
+
+List takes no option. Get/delete require `code` (integer 1..254), `space`
+(valid explicit DHCPv4 option space, at most 128 bytes), and optionally
+`client-classes` (distinct nonempty strings). Omitted classes and `[]` select
+the unclassified option; supplied classes match the native serialized list
+exactly, including ordering. Code alone never identifies an option across scopes.
+Reads stay within the selected parent view and do not combine selectors.
+
+Set requires `code`, `space`, and string `data`. Optional fields are
+`name`, `csv-format`, `always-send`, `never-send`, `client-classes`, and
+map `user-context`. M26's selected-definition native parser is shared:
+CSV defaults to true and requires a selected or native built-in definition;
+false accepts native hexadecimal encoding. Strings, integers, addresses,
+arrays, records, binary and valid empty payloads use Kea's encoder. Invalid
+encoding, conflicting flags, unknown attributes and unsupported representations
+are rejected. There is no additional `persistent` JSON field: Kea's
+`always-send` representation controls the native persistent descriptor flag.
+
+For example, fresh subnet option creation:
+
+```json
+{
+  "command": "cb-option4-subnet-set",
+  "arguments": {
+    "server-tag": "test-server",
+    "parent": { "subnet-id": 980 },
+    "option": { "code": 15, "space": "dhcp4", "data": "example.test" }
+  }
+}
+```
+
+Reads reconstruct explicit options from the parent object's native `CfgOption`;
+they do not return inherited effective options. Results contain `count`,
+`options` (native serialization ordered by space/code/class identity),
+`parent`, `server-tag`, `parent-server-tags`, and
+`associations-complete: false`. Option association joins are not reconstructed
+by native readback. Parent tags are observations, not a complete dependency
+certificate. Missing parents are validation errors; empty list/missing get or
+delete return result 3 with zero count. Successful reads/fresh creates return
+result 0. Validation/refusal/backend failure returns result 1 through the
+existing safe exception boundary. Only contract errors disclose detail.
+
+Set/delete first require mutation admission. Mutating parent reads use
+`ANY()` and require exactly the requested parent association. Existing
+code/space at that scope refuses set and delete across all class variants:
+`Existing scoped option mutations are unsupported: complete associations and dependencies cannot be verified.`
+A missing delete is a read-only result 3. No native delete is invoked.
+
+Fresh set calls the native scoped `createUpdateOption4` overload with
+`ANY()`, without replacing its parent. Native audit triggers update the owning
+network or subnet modification timestamp (including for pool options) and record
+audit history. Parent configuration and association rows otherwise remain intact. Pool writes additionally enumerate
+ALL, each named server and UNASSIGNED subnets and require the exact range to
+occur once in the whole backend: native pool writes have no subnet key.
+Parent ownership, fresh identity and global range checks are preflight evidence,
+not an atomic compare-and-swap. The designated exclusive writer remains required.
+Post-write readback must find the new identity; uncertainty requires
+reconciliation before another attempt, never an automatic retry.
+
+Mutation responses include `activation-requested: false`. No command activates
+consumers or clears an M22 hold. Persisted state, selected parent serialization,
+active `config-get` and actual packets remain separate evidence. Existing
+M28 subnet updates still refuse scoped options and shared-network membership.
+See the [dependency backlog](dependency-safety-backlog.md) for remaining gates,
+and the pinned [native interface](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/lib/dhcpsrv/config_backend_dhcp4.h)
+and [public command descriptions](https://github.com/isc-projects/kea/tree/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api)
+for the baseline.
+
 ## M27: shared networks
 
 These four project-specific commands target pinned Kea 3.2.1 commit

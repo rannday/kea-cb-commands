@@ -20,12 +20,15 @@ unsupported dependencies, shared-network membership and unsafe pool replacement
 remain refused. No commands or aliases are added. Full native replacement is
 still unavailable; see the [capability inventory](subnet4-capabilities.md).
 
-**Next: M29 — scoped options.** Establish exact parent identity, association and
-dependency evidence before adding writes; the richer M28 parser must not bypass
-existing refusals.
-Acceptance requires both SQL backends/threading modes, restart, explicit
-activation, SQL/audit-preserving refusals and real allocation. Do not make
-commercial aliases until request/response behavior is qualified.
+**M29 implementation: PARTIAL.** Twelve project-specific scoped-option callouts
+add selected parent reads and guarded fresh native creation for shared networks,
+subnets and pools. Existing option updates/deletes remain refused because native
+readback omits association joins. Pool creation requires backend-wide range
+uniqueness. Parent replacement is never used. See [contracts](commands.md).
+
+**Next: M30 — DHCPv4 client classes.** Reuse shared command/option helpers;
+establish native ordering, dependency and association evidence before writes.
+Do not make commercial aliases until request/response behavior is qualified.
 
 Outstanding server deletion, global/option replacement/deletion and compound
 globals remain explicit functional gaps with evidence requirements in the
@@ -279,10 +282,16 @@ requirements remain. Follow-up evidence is listed in the
 
 ### M29 — DHCPv4 scoped options
 
-Depends on M28. Six set/delete commands for network, subnet and pool scopes.
-Acceptance covers precise parent identity, class filters, option-definition
-dependencies, inherited versus explicit deletion, overlapping-range ambiguity
-and packet-observed precedence. Do not invent scoped get/list commands.
+Depends on M28. The commercial inventory has six set/delete commands for network,
+subnet and pool scopes. M29 adds twelve project-specific callouts, including six
+read commands; these do not enlarge the commercial inventory. Acceptance covers
+precise parent identity, class filters, option-definition dependencies, inherited
+versus explicit deletion, range ambiguity and packet-observed precedence.
+
+**Outcome: PARTIAL.** Fresh creation and independent reads are supported;
+existing-option update/delete remains a functional gap. Complete native option
+association visibility and safe conditional mutation are unresolved. M28's
+parent preservation refusals and M22 recovery limits remain in force.
 
 ### M30 — DHCPv4 client classes
 

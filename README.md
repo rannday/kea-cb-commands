@@ -1,7 +1,7 @@
 # Kea Database Commands
 
 An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets, server records,
-selected global parameters, option definitions, global options and shared networks in ISC Kea's
+selected global parameters, option definitions, global/scoped options and shared networks in ISC Kea's
 SQL configuration backend. It targets
 **unmodified Kea 3.2.1 on Linux** and uses Kea's native PostgreSQL and
 MySQL/MariaDB backend APIs and schema. It requires
@@ -33,7 +33,10 @@ M27 adds four shared-network callouts: native reads and guarded fresh creation;
 existing updates/deletes and membership writes remain refused. Member readback
 uses native ANY scope, explicitly separated from consumer activation. See the
 [dependency-safety backlog](docs/dependency-safety-backlog.md).
-Functional coverage is 3 implemented, 18 partial, 53 missing of 74; exact
+M29 adds twelve scoped-option callouts: list/get and guarded fresh creation for
+network, subnet and pool scopes. Parent objects remain intact; existing option
+updates/deletes remain refused. Pool creation requires a globally unique range.
+Functional coverage is 3 implemented, 21 partial, 50 missing of 74; exact
 commercial compatibility remains zero. Production readiness remains NO-GO.
 
 See the [gap analysis](docs/commercial-parity-gap-analysis.md),
@@ -57,6 +60,7 @@ unchanged.
 
 | Command | Purpose |
 | --- | --- |
+| `cb-option4-network/subnet/pool-list/get/set/del` | Read scoped options; create absent identities; refuse existing writes |
 | `cb-shared-network4-list/get/set/del` | Read native networks/membership; create minimal new networks; refuse existing writes |
 | `cb-option-def4-list/get/set/del` | Read/create native definitions; refuse existing update/delete |
 | `cb-option4-global-list/get/set/del` | Read/create native global options; refuse existing update/delete |

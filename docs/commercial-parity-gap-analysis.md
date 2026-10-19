@@ -1,5 +1,29 @@
 # Commercial parity gap analysis
 
+## M29 scoped options
+
+M29 is **PARTIAL**. Twelve project-specific scoped-option callouts provide
+list/get and guarded fresh creation for shared networks, subnets and pools.
+Existing update/delete remains refused; missing deletion returns result 3
+without a native write. Parent objects are never replaced. Option associations
+are explicitly incomplete even when parent tags are observable.
+
+Only six commercial commands exist for these scopes: network/subnet/pool set
+and delete. There are no documented scoped list/get commands in this baseline;
+the six project read commands are extensions. Three create-only set analogues
+move from missing to partial. Delete remains missing functionality despite its
+safe refusal endpoint. Current functional coverage is **3 implemented, 21 partial,
+50 missing** of 74 (DHCPv4 3/21/12; DHCPv6 0/0/38). There are 37 registered
+project commands. Exact commercial compatibility remains **0 implemented,
+0 partial, 74 missing**. Earlier counts below are historical.
+
+Native scoped writes use ANY and parent identity; production guards require
+one exact parent association. Pool writes use range alone, so creation also
+requires backend-wide range uniqueness across common, named and unassigned
+subnets. Complete option links and atomic revision preconditions remain absent.
+See [contracts](commands.md), [architecture](command-architecture.md) and the
+[dependency backlog](dependency-safety-backlog.md).
+
 ## M28 bounded subnet extension
 
 M28 is **PARTIAL**: the existing subnet SET accepts native timers, boot fields,

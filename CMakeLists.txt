@@ -61,6 +61,7 @@ add_library(kea_db_commands MODULE
     src/subnet4.cc
     src/records4.cc
     src/options4.cc
+    src/scoped_options4.cc
     src/shared_network4.cc)
 set_target_properties(kea_db_commands PROPERTIES
     OUTPUT_NAME dhcp_db_commands

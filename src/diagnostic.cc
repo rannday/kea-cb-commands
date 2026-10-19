@@ -94,6 +94,18 @@ DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
         handle.registerCommandCallout("cb-option4-global-get", optionGlobal4Get);
         handle.registerCommandCallout("cb-option4-global-set", optionGlobal4Set);
         handle.registerCommandCallout("cb-option4-global-del", optionGlobal4Del);
+        handle.registerCommandCallout("cb-option4-network-list", optionNetwork4List);
+        handle.registerCommandCallout("cb-option4-network-get", optionNetwork4Get);
+        handle.registerCommandCallout("cb-option4-network-set", optionNetwork4Set);
+        handle.registerCommandCallout("cb-option4-network-del", optionNetwork4Del);
+        handle.registerCommandCallout("cb-option4-subnet-list", optionSubnet4List);
+        handle.registerCommandCallout("cb-option4-subnet-get", optionSubnet4Get);
+        handle.registerCommandCallout("cb-option4-subnet-set", optionSubnet4Set);
+        handle.registerCommandCallout("cb-option4-subnet-del", optionSubnet4Del);
+        handle.registerCommandCallout("cb-option4-pool-list", optionPool4List);
+        handle.registerCommandCallout("cb-option4-pool-get", optionPool4Get);
+        handle.registerCommandCallout("cb-option4-pool-set", optionPool4Set);
+        handle.registerCommandCallout("cb-option4-pool-del", optionPool4Del);
         LOG_INFO(logger, "DB_COMMANDS_LOADED");
         allow_mutations = requested;
         return 0;

@@ -9,7 +9,7 @@ families remain proposals until their implementation milestones. The
 ## Current architecture
 
 One CMake MODULE exports the Kea lifecycle functions. `src/diagnostic.cc`
-registers twenty-five IPv4-only commands; `commands.cc` retains command-specific replies
+registers thirty-seven IPv4-only commands; `commands.cc` retains command-specific replies
 and explicit mutation admission. Header-only `command_support.h` shares request
 extraction, required/optional field checks, safe errors and response publication.
 `backend_support.h` shares typed per-invocation manager access, single-backend
@@ -29,6 +29,28 @@ builder and common replies cannot implement the full commercial interface.
 Keep this architecture. Add small shared command support and typed,
 family-specific handlers as their milestones arrive. Do not build a generic
 SQL layer, configuration store, controller service or universal CRUD framework.
+
+## M29 scoped-option handlers
+
+`scoped_options4.cc` contains twelve explicit callouts and one small scope-aware
+handler. Shared request/response/backend helpers remain authoritative. M26
+encoding helpers move unchanged into private inline `option_support.h`, used by
+global and scoped options: selected native definitions, native CSV/binary
+construction and native serialization. No second codec or SQL layer is added.
+
+Scoped reads come from the selected parent's `CfgOption`; public native
+`getOption4/getAllOptions4` are global-only. Writes use the native independent
+network-name, subnet-ID or pool-range overload, with ANY as required by pinned
+drivers. They never replace the parent. Parent ANY tags must contain exactly
+the requested tag. Pool creation enumerates ALL, every named server and
+UNASSIGNED subnet views, deduplicates subnet IDs, then checks physical ranges
+through ANY reads. A nonunique range is refused before the native range-only
+write. Existing code/space at any class variant prevents creation/deletion;
+native option association visibility is insufficient to authorize replacement.
+
+The guards are preflight reads, not atomic compare-and-swap. The exclusive
+designated-writer boundary remains necessary. M28 whole-subnet mutation guards,
+M22 tooling holds and uncertain-outcome recovery remain unchanged.
 
 ## M26 option handlers
 

@@ -1,5 +1,29 @@
 # Commercial command compatibility matrix
 
+## M29 scoped options
+
+M29 is **PARTIAL**. Twelve project-specific scoped-option callouts provide
+list/get and guarded fresh creation for shared networks, subnets and pools.
+Existing update/delete remains refused; missing deletion returns result 3
+without a native write. Parent objects are never replaced. Option associations
+are explicitly incomplete even when parent tags are observable.
+
+Only six commercial commands exist for these scopes: network/subnet/pool set
+and delete. There are no documented scoped list/get commands in this baseline;
+the six project read commands are extensions. Three create-only set analogues
+move from missing to partial. Delete remains missing functionality despite its
+safe refusal endpoint. Current functional coverage is **3 implemented, 21 partial,
+50 missing** of 74 (DHCPv4 3/21/12; DHCPv6 0/0/38). There are 37 registered
+project commands. Exact commercial compatibility remains **0 implemented,
+0 partial, 74 missing**. Earlier counts below are historical.
+
+Native scoped writes use ANY and parent identity; production guards require
+one exact parent association. Pool writes use range alone, so creation also
+requires backend-wide range uniqueness across common, named and unassigned
+subnets. Complete option links and atomic revision preconditions remain absent.
+See [contracts](commands.md), [architecture](command-architecture.md) and the
+[dependency backlog](dependency-safety-backlog.md).
+
 ## M28 bounded subnet extension
 
 M28 is **PARTIAL**: the existing subnet SET accepts native timers, boot fields,
@@ -340,12 +364,12 @@ dependencies, validation and create/replace/delete semantics.
 | [`remote-option4-global-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-get-all.json) | v4 | OG; S | `options`, `count` | `getAllOptions4 (global)` | Partial: cb selected native read; incomplete associations; project envelope |
 | [`remote-option4-global-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-get.json) | v4 | OG; S | `options` | `getOption4 (global)` | Partial: cb selected native read; incomplete associations; project envelope |
 | [`remote-option4-global-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-global-set.json) | v4 | OG; S | `options` | `createUpdateOption4 (global)` | Partial: cb native create-only; existing update refused; project envelope |
-| [`remote-option4-network-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-network-del.json) | v4 | OS; N | `count` | `deleteOption4 (network name)` | Missing: schema, native handler and qualification; U6 |
-| [`remote-option4-network-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-network-set.json) | v4 | OS; N | `options` | `createUpdateOption4 (network name)` | Missing: schema, native handler and qualification; U6 |
-| [`remote-option4-pool-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-pool-del.json) | v4 | OS; N | `count` | `deleteOption4 (address range)` | Missing: schema, native handler and qualification; U6 |
-| [`remote-option4-pool-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-pool-set.json) | v4 | OS; N | `options` | `createUpdateOption4 (address range)` | Missing: schema, native handler and qualification; U6 |
-| [`remote-option4-subnet-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-subnet-del.json) | v4 | OS; N | `count` | `deleteOption4 (subnet ID)` | Missing: schema, native handler and qualification; U6 |
-| [`remote-option4-subnet-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-subnet-set.json) | v4 | OS; N | `options` | `createUpdateOption4 (subnet ID)` | Missing: schema, native handler and qualification; U6 |
+| [`remote-option4-network-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-network-del.json) | v4 | OS; N | `count` | `deleteOption4 (network name)` | Missing: cb-option4-network-del reports absence only; existing deletion refused; U6 |
+| [`remote-option4-network-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-network-set.json) | v4 | OS; N | `options` | `createUpdateOption4 (network name)` | Partial: cb-option4-network-set guarded fresh creation; existing updates refused; U6 |
+| [`remote-option4-pool-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-pool-del.json) | v4 | OS; N | `count` | `deleteOption4 (address range)` | Missing: cb-option4-pool-del reports absence only; existing deletion refused; U6 |
+| [`remote-option4-pool-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-pool-set.json) | v4 | OS; N | `options` | `createUpdateOption4 (address range)` | Partial: cb-option4-pool-set guarded fresh creation; subnet/range uniqueness required; U6 |
+| [`remote-option4-subnet-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-subnet-del.json) | v4 | OS; N | `count` | `deleteOption4 (subnet ID)` | Missing: cb-option4-subnet-del reports absence only; existing deletion refused; U6 |
+| [`remote-option4-subnet-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option4-subnet-set.json) | v4 | OS; N | `options` | `createUpdateOption4 (subnet ID)` | Partial: cb-option4-subnet-set guarded fresh creation; existing updates refused; U6 |
 | [`remote-option6-global-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option6-global-del.json) | v6 | OG; S | `count` | `deleteOption6 (global)` | Missing: schema, native handler and qualification |
 | [`remote-option6-global-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option6-global-get-all.json) | v6 | OG; S | `options`, `count` | `getAllOptions6 (global)` | Missing: schema, native handler and qualification |
 | [`remote-option6-global-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-option6-global-get.json) | v6 | OG; S | `options` | `getOption6 (global)` | Missing: schema, native handler and qualification |

@@ -101,10 +101,44 @@ the caller alone is insufficient. Keep the operation refused or pursue an
 upstream API extension. Do not add production SQL as a shortcut.
 
 Membership support remains deferred after M28's bounded subnet extension;
-network/subnet/pool option mutation belongs to M29. Neither path should
+M29 adds guarded fresh network/subnet/pool options, while existing-option
+replacement and deletion remain deferred. Neither path should
 silently unlock these cases through a richer parser alone. Consumer runtime
 observability and writer recovery remain a separate qualification workstream;
 M22's incomplete exact-equivalence evidence must remain visible.
+
+## M29 scoped-option findings and remaining gates
+
+Native scoped creation operates independently of parent replacement. The
+[DHCPv4 interface](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/lib/dhcpsrv/config_backend_dhcp4.h)
+has global-only `getOption4/getAllOptions4`; scoped reads require the selected
+parent's `CfgOption`. Scoped create/delete overloads require `ANY()` and accept
+network name, subnet ID, or pool start/end. Pool writes do not accept subnet ID.
+M29 enumerates ALL, each server and UNASSIGNED parents to reject duplicated
+ranges, including hidden unassigned duplicates.
+
+The drivers reconstruct parent tags, but scoped option descriptors omit option
+association joins. Native upsert can preserve hidden links on an existing row.
+Delete's optional class predicate can match multiple variants; it is not a
+safe project identity predicate. Consequently M29 permits fresh code/space only
+under one exact parent association and refuses all existing-option set/delete.
+A different class list does not authorize a new variant over an existing
+code/space. Independent parent writes never bypass the M28 refusal of parent
+replacement with options or network membership.
+
+| Evidence category | Available evidence and remaining work |
+| --- | --- |
+| Native APIs | Selected parent identity, reconstructed parent tags, explicit option descriptors, payload/flags/classes, native timestamps/audit queries; sufficient for bounded fresh creation with an exclusive writer |
+| Diagnostic SQL only | Exact option row IDs, option-server join sets, full stored encoding, range ownership, parent/dependency rows and before/after audit contents; M29 tests independently assert parent preservation and no SQL/audit changes on refusal |
+| Missing from either snapshot alone | Atomic relationship between preflight and mutation, current writer ownership, operator intent and full consumer equivalence |
+| Upstream extension needed for a native complete-evidence contract | Expose complete scoped-option associations/dependencies, address pools by parent plus stable identity, exact class matching and conditional mutation by expected revision |
+| Stricter preconditions currently supported | Fresh code/space under a singly associated parent, selected native encoding, globally unique pool range, designated writer and existing recovery gate |
+| Deferred existing mutations | Prove complete associations, class variants, definitions and safe exact SQL effects on both engines before update/delete; caller acknowledgement or a diagnostic snapshot alone cannot unlock them |
+
+No production SQL, generic reconciliation framework, distributed fencing or
+upstream API change is introduced. Direct option timestamps and audit metadata
+are not added to project responses; existing audit tooling supplies separate
+observations. Scoped read responses explicitly remain association-incomplete.
 
 ## M28 preservation findings and remaining gates
 

@@ -23,7 +23,8 @@ RECORD_COMMANDS = tuple(
 )
 OPTION_COMMANDS = tuple(
     f"cb-{family}-{operation}"
-    for family in ("option-def4", "option4-global")
+    for family in ("option-def4", "option4-global", "option4-network",
+                   "option4-subnet", "option4-pool")
     for operation in ("list", "get", "set", "del")
 )
 SHARED_NETWORK_COMMANDS = tuple(
@@ -56,6 +57,17 @@ def verify_denied(send):
         "cb-shared-network4-set": {"server-tag": "all", "shared-network": {"name": "test"}},
         "cb-shared-network4-del": {"server-tag": "all", "name": "test"},
     }
+    for scope, parent in (
+        ("network", {"shared-network-name": "test"}),
+        ("subnet", {"subnet-id": 900}),
+        ("pool", {"subnet-id": 900, "start": "198.18.0.10", "end": "198.18.0.20"}),
+    ):
+        for operation in ("set", "del"):
+            option = {"code": 15, "space": "dhcp4"}
+            if operation == "set":
+                option["data"] = "test.example"
+            mutations[f"cb-option4-{scope}-{operation}"] = {
+                "server-tag": "all", "parent": parent, "option": option}
     for name, valid in mutations.items():
         for arguments in (valid, None, {}, [], False, 1, "invalid", {"unexpected": True}):
             assert send(name, arguments) == ADMISSION_ERROR
@@ -174,6 +186,23 @@ def verify_argument_contracts(send):
         elif operation != "list":
             arguments["name"] = "test"
         assert send(f"cb-shared-network4-{operation}", arguments) == backend_error
+    for scope, parent in (
+        ("network", {"shared-network-name": "test"}),
+        ("subnet", {"subnet-id": 900}),
+        ("pool", {"subnet-id": 900, "start": "198.18.0.10", "end": "198.18.0.20"}),
+    ):
+        for operation in ("list", "get", "set", "del"):
+            arguments = {"server-tag": "all", "parent": parent}
+            if operation != "list":
+                arguments["option"] = {"code": 15, "space": "dhcp4"}
+                if operation == "set":
+                    arguments["option"]["data"] = "test.example"
+            name = f"cb-option4-{scope}-{operation}"
+            assert send(name, arguments) == backend_error, (name, arguments)
+            for invalid in ({}, [], None, {"server-tag": "all", "parent": []},
+                            dict(arguments, **{"server-tag": False}),
+                            dict(arguments, **{"server-tag": "UPPER"})):
+                assert send(name, invalid)["result"] == 1, (name, invalid)
     for name, value in (("authoritative", 1), ("renew-timer", True),
                         ("boot-file-name", []), ("dhcp-ddns", {})):
         assert send("cb-global-parameter4-set", {

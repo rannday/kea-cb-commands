@@ -19,6 +19,7 @@ from mutation import configure_admission, request, verify_mutations
 from lifecycle import verify_lifecycle
 from records4 import verify_records, verify_records_restart
 from options4 import verify_options, verify_options_restart
+from scoped_options4 import verify_scoped_options, verify_scoped_options_restart
 from shared_network4 import (
     prepare_shared_network_restart, verify_shared_network_membership,
     verify_shared_networks, verify_shared_networks_restart,
@@ -482,6 +483,7 @@ def run_case(args, directory, multithreading):
                     verify_options(send, snapshot, sql, config, save)
                     verify_shared_networks(send, snapshot, sql, config, save)
                     verify_shared_network_membership(send, snapshot, sql, config, save)
+                    verify_scoped_options(send, snapshot, sql, config, save)
                     if args.multiprocess:
                         verify_multiprocess(
                             args, directory, config, environment, authorization, send, sql,
@@ -513,6 +515,7 @@ def run_case(args, directory, multithreading):
                             time.sleep(0.1)
                     verify_records_restart(send, args.packet)
                     verify_options_restart(send)
+                    verify_scoped_options_restart(send)
                     verify_shared_networks_restart(send, sql, config)
                     if args.packet:
                         verify_packet_restart(send, directory)
