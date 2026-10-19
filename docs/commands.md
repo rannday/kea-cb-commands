@@ -1,5 +1,85 @@
 # DHCPv4 configuration commands
 
+## M30: DHCPv4 client classes
+
+Four project-specific commands use the pinned Kea 3.2.1 native backend. No
+commercial `remote-*` aliases are registered.
+
+| Command | Exact arguments |
+| --- | --- |
+| `cb-client-class4-list` | `server-tag` |
+| `cb-client-class4-get` | `server-tag`, `name` |
+| `cb-client-class4-set` | `server-tag`, one `client-class` map, `follow-class-name: ""` |
+| `cb-client-class4-del` | `server-tag`, `name` |
+
+All fields are required as shown; unknown fields fail. Exactly one SQL backend
+is required. An explicit lowercase existing server tag selects native ONE(tag);
+`all` selects ALL/common. There is no merge across selectors, request ANY,
+unassigned selector, or multi-tag creation. A name is globally unique across
+associations, 1..128 bytes, without NUL or surrounding whitespace. Fresh creation
+rejects native built-ins, DROP, REJECT and SPAWN_ names.
+
+Set accepts required `name` and optional `test`, `only-in-additional-list`,
+`option-data`, `next-server`, `server-hostname`, `boot-file-name`,
+`valid-lifetime`, `min-valid-lifetime`, `max-valid-lifetime`, `user-context`.
+Lifetimes are integers 1..2147483647; bounds require valid-lifetime and native
+triplet validation. Text is NUL-free and bounded to 65535 bytes; native parsing
+enforces boot-field/address limits. Native ClientClassDefParser/ExpressionParser
+validate expressions and preceding visible class references. Kea validates named
+option references; custom SQL option names are not installed into process-global
+expression definitions. Use supported native option codes. There is no separate
+expression language.
+
+Class options require `code`, `space`, string `data`; optionally
+`csv-format`, `always-send`, `never-send`, map `user-context`. Selected SQL
+definitions and native built-ins drive the shared option encoder. Duplicate
+space/code, guards, nested definitions and unsupported representations fail.
+Creation rejects template-test, option-def, offer-lifetime, renew/rebind timers,
+required-client-classes and every other unlisted attribute.
+
+```json
+{"command":"cb-client-class4-set","arguments":{"server-tag":"test-server","follow-class-name":"","client-class":{"name":"example","test":"option[60].exists"}}}
+```
+
+Empty follow-class-name explicitly appends to the native global order.
+Missing, null and nonempty predecessors fail, including an existing predecessor.
+Insertion/reordering is unavailable. Responses retain native selected-view order;
+evaluation-position is zero-based within that view, not a SQL order_index.
+ONE includes common classes. Common creation cannot depend on a named-only class.
+
+Success is result 0 with text `DHCPv4 client-class operation completed.` and
+arguments `client-classes` (native serialized rows), `count`, `server-tag`,
+`order-scope: "selected-view"`, `associations-complete: false`,
+`dependencies-complete: false`. Rows add observed `server-tags`,
+`modification-ts`, `evaluation-position`, expression-derived
+`referenced-classes`, and native `depend-on-known`. Native option/definition,
+boot, lifetime and context fields remain present where serialized. Derived
+dependencies are not a complete consumer inventory. Native readback does not
+expose the global order index, predecessor or complete association inventory.
+Template identity is not faithfully reconstructed by the SQL reader; template
+creation and mutation are unsupported.
+
+Empty list, missing get and missing delete return result 3 with the same empty
+envelope. A missing delete makes no native write. Existing set/delete returns
+result 1 and text `Existing client-class mutations are unsupported: complete
+associations and dependencies cannot be verified.` irrespective of visibility.
+Admission is checked first. Other contract errors return result 1 with safe
+validation text; native failures use the generic reconciliation response.
+
+Fresh set checks global name absence and observable dormant consumers in runtime
+and native subnets, pools, networks, classes and global option guards. A textual
+consumer of the proposed name refuses creation. Unassigned global options are
+not enumerated by the pinned native getter; these inactive objects and any future
+association/activation need separate qualification. Evidence remains incomplete.
+Exclusive writer ownership is mandatory: preflight is not atomic fencing.
+
+Set uses createUpdateClientClass4 only after validation; get/list use native
+getClientClass4/getAllClientClasses4. Existing native delete/upsert is never
+called. Refusals preserve configuration rows, order, associations and audit state.
+Mutation envelopes add `activation-requested: false`. Persistence requires
+separate operator-controlled pull/reload/restart; uncertain writes require
+reconciliation before retry. See the [dependency backlog](dependency-safety-backlog.md).
+
 ## M29: scoped DHCPv4 options
 
 Twelve project-specific commands use pinned Kea 3.2.1 native APIs. For each

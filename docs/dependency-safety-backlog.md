@@ -8,6 +8,56 @@ readiness remains NO-GO. Current contracts are in [commands](commands.md);
 [reconciliation evidence](reconciliation-evidence.md) and
 [operator recovery](operator-recovery.md) define the deployment limits.
 
+## M30 client-class findings
+
+Native class names are globally unique (schema name UNIQUE, length 128).
+Server links affect visibility, not identity. A separate global class-order
+table has class_id/order_index; SQL reads ORDER BY order_index. ONE includes
+common classes. The selected response position is not a per-server stored rank.
+Empty predecessor appends; insertion shifts later classes. Only explicit fresh
+append is permitted, so unrelated class rows/order/associations remain intact.
+
+Pinned getClientClass4/getAllClientClasses4 expose native definitions, options,
+class-local option definitions, boot fields, valid-lifetime triplets, context,
+additional-only evaluation, modification timestamp, observed tags and a
+depend-on-known flag. Native readback does not expose order_index/predecessor or
+a complete consumer inventory. SQL template classes are reconstructed as ordinary
+ClientClassDef, losing template identity. The parser's SQL-support restrictions
+do not align with offer-lifetime readback; template/offer creation is refused.
+Class renew/rebind timers are not persisted by these APIs.
+
+Native member() dependencies have a dedicated class-dependency table. Schema
+triggers reject self/later references and incompatible server associations.
+This does not inventory textual subnet/pool/network restrictions, additional
+evaluation lists or option class guards. A fresh target can give a dormant
+textual consumer new meaning. Creation scans native/runtime observable consumers
+and refuses such targets before writing. Unassigned global option enumeration
+is empty in the pinned API; future assignment/activation remains outside this
+bounded proof. Consumer inventory is explicitly incomplete.
+
+Native existing-class upsert deletes/replaces options, definitions, dependencies
+and associations. Native delete targets the whole class; dependency foreign keys
+protect some class references but do not protect every textual consumer.
+Therefore every existing update/delete is refused before a native write,
+including hidden/mixed associations. Missing deletion returns result 3.
+Insertion, reordering, force and cascade remain unavailable. Native timestamps
+are observations and do not close the race with an independent writer.
+
+Disposable SQL snapshots include configuration, order, association and audit
+tables. Tests compare the complete snapshot on malformed, duplicate, unsafe and
+admission-denied requests. Fixture SQL creates mixed associations and dormant
+consumers; it is never production implementation. Packet fixtures explicitly
+activate persisted classes and verify matching/nonmatching allocation, member
+ordering, class options and additional evaluation. SQL evidence alone never
+establishes DHCP classification.
+
+Before widening writes, qualify complete consumers at every scope, unassigned
+records, all associations, template roundtrip, ordering across selectors and an
+atomic revision precondition under genuine exclusive writer ownership. Keep
+uncertain-outcome reconciliation, no retry and explicit activation requirements.
+The upstream transaction-cleanup issue is unchanged; no connection interruption
+is part of M30.
+
 ## Evidence boundaries
 
 1. **Native evidence:** selected objects, native serialization, observed server

@@ -62,7 +62,8 @@ add_library(kea_db_commands MODULE
     src/records4.cc
     src/options4.cc
     src/scoped_options4.cc
-    src/shared_network4.cc)
+    src/shared_network4.cc
+    src/client_classes4.cc)
 set_target_properties(kea_db_commands PROPERTIES
     OUTPUT_NAME dhcp_db_commands
     CXX_VISIBILITY_PRESET hidden

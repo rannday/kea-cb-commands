@@ -122,10 +122,10 @@ def _lease(directory, address, hardware, lifetime=600):
 
 
 def _exchange(directory, first, last, expect_offer=True, boot_file=None,
-              expected_options=None, absent_options=(), lifetime=600):
+              expected_options=None, absent_options=(), lifetime=600, hardware=None):
     _isolated()
     xid = secrets.randbits(32)
-    hardware = b"\x02" + secrets.token_bytes(5)
+    hardware = hardware or b"\x02" + secrets.token_bytes(5)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
         receiver.bind((RELAY, CLIENT_PORT))
         receiver.sendto(_packet(1, xid, hardware), SERVER)
@@ -438,6 +438,10 @@ def verify_dhcp(send, config, save, directory, snapshot, sql=None):
 
     if sql is not None:
         _verify_shared_network_inheritance(send, config, directory, snapshot, sql, expected)
+        from client_class_packets import verify_client_class_packets
+
+        verify_client_class_packets(send, config, directory, snapshot, sql, expected,
+                                    _exchange, _subnets, _pools, SUBNET_ID)
 
     # Pool replacement changes backend visibility first, then runtime on pull.
     time.sleep(1.1)
@@ -470,6 +474,9 @@ def verify_packet_restart(send, directory):
     expected[246] = b"after-activation"
     path = _exchange(directory, "127.0.0.30", "127.0.0.40", boot_file="m25-packet.efi",
                      expected_options=expected)
+    from client_class_packets import verify_client_class_restart
+
+    verify_client_class_restart(send, directory, expected, _exchange)
     print("PASS: restarted Kea loads SQL pool/global values and records a fresh DHCP lease")
     assert path is not None
     before = path.read_bytes()

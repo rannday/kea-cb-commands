@@ -1,7 +1,8 @@
 # Kea Database Commands
 
 An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets, server records,
-selected global parameters, option definitions, global/scoped options and shared networks in ISC Kea's
+selected global parameters, option definitions, global/scoped options, shared networks
+and client classes in ISC Kea's
 SQL configuration backend. It targets
 **unmodified Kea 3.2.1 on Linux** and uses Kea's native PostgreSQL and
 MySQL/MariaDB backend APIs and schema. It requires
@@ -36,8 +37,13 @@ uses native ANY scope, explicitly separated from consumer activation. See the
 M29 adds twelve scoped-option callouts: list/get and guarded fresh creation for
 network, subnet and pool scopes. Parent objects remain intact; existing option
 updates/deletes remain refused. Pool creation requires a globally unique range.
-Functional coverage is 3 implemented, 21 partial, 50 missing of 74; exact
-commercial compatibility remains zero. Production readiness remains NO-GO.
+M30 adds four client-class callouts: native ordered reads and guarded append-only
+fresh creation with native expression/dependency validation, class options,
+boot/lifetime fields and additional evaluation. Existing mutations and reordering
+remain refused. Activation is explicit; packet tests verify classification.
+Functional coverage is 3 implemented, 24 partial, 47 missing of 74; exact
+commercial compatibility remains zero. There are 41 project commands.
+Production readiness remains NO-GO.
 
 See the [gap analysis](docs/commercial-parity-gap-analysis.md),
 [shared architecture](docs/command-architecture.md) and
@@ -60,6 +66,7 @@ unchanged.
 
 | Command | Purpose |
 | --- | --- |
+| `cb-client-class4-list/get/set/del` | Read ordered classes; append fresh classes; refuse existing writes |
 | `cb-option4-network/subnet/pool-list/get/set/del` | Read scoped options; create absent identities; refuse existing writes |
 | `cb-shared-network4-list/get/set/del` | Read native networks/membership; create minimal new networks; refuse existing writes |
 | `cb-option-def4-list/get/set/del` | Read/create native definitions; refuse existing update/delete |

@@ -1,5 +1,60 @@
 # Commercial parity gap analysis
 
+## M30 client classes
+
+M30 is **PARTIAL**. Four project-specific `cb-client-class4-list/get/set/del`
+callouts add ordered native reads and guarded append-only fresh creation.
+Existing updates/deletes, insertion/reordering, templates and class-local
+definitions remain unsupported. Missing deletion returns result 3 without a
+write. Expression parsing is native; SQL persistence never requests activation.
+Complete associations and consumer dependencies remain unavailable.
+See [contracts](commands.md) and the [dependency backlog](dependency-safety-backlog.md).
+
+Functional coverage is **3 implemented, 24 partial, 47 missing** of 74:
+DHCPv4 3/24/9; DHCPv6 0/0/38. The three new partial analogues are class list,
+get and create-only set. Existing-class delete remains missing functionality
+despite its safe refusal endpoint. There are **41 registered project commands**.
+Exact commercial compatibility remains **0 implemented, 0 partial, 74 missing**.
+Earlier counts below are historical. Production readiness remains **NO-GO**.
+
+## M30 public client-class inventory
+
+The pinned [Kea 3.2.1 ARM](https://kea.readthedocs.io/en/kea-3.2.1/arm/hooks.html#cb-cmds-configuration-backend-commands)
+and the four immutable descriptors linked in the matrix establish exactly these
+DHCPv4 commercial operations. All use a required `remote` database specification;
+these database-selector semantics are not the project's configured-backend
+selection. No public proprietary implementation was inspected.
+
+| Commercial operation | Required request fields beyond remote | Optional fields / documented ordering | Documented successful response | Native API / selector |
+| --- | --- | --- | --- | --- |
+| remote-class4-get | client-classes: exactly one map with name; server-tags forbidden | No class mutation | result 0, text DHCPv4 client class found., arguments client-classes with metadata.server-tags and count 1 | getClientClass4(ANY, name); global identity |
+| remote-class4-get-all | nonempty server-tags list | Named/common selection; ARM also describes null/unassigned; preserve evaluation order | result 0, text N DHCPv4 client class(es) found., arguments ordered client-classes with metadata.server-tags, count | getAllClientClasses4(selector); ONE includes common |
+| remote-class4-set | one definition and nonempty server-tags list | ARM client-classes list and arguments.follow-class-name; descriptor contradicts both locations; null/omitted predecessor appends new class, retains existing position | result 0 and client-classes containing set name; descriptor success text incorrectly says shared network | createUpdateClientClass4(selector, definition, follow_class_name) |
+| remote-class4-del | client-classes: exactly one map with name; server-tags forbidden | Delete global identity; referenced classes may block deletion | result 0, text 1 DHCPv4 client class(es) deleted., arguments count 1 | deleteClientClass4(ANY, name); whole class |
+
+U3 remains unresolved: the pinned SET descriptor uses singular `client-class`
+containing a list and places follow-class-name inside its class object, whereas
+the ARM uses plural `client-classes` and the argument-level predecessor. U4 is
+a copied shared-network success text/comment. Authoritative public evidence
+establishes intended functionality but cannot choose an executable commercial
+schema/text. No commercial alias is justified.
+
+For every operation, exact per-command missing-record and malformed/native-error
+text/envelopes are not established. Generic Kea result 1/error and 3/empty do not
+prove those exact command contracts. SET is an upsert, not an absence-only
+operation; not-found is not equivalent to create refusal. DEL dependency errors
+and GET-ALL empty results require proprietary execution evidence for exact parity.
+The project uses explicitly different, documented schemas and safe result 3
+empty envelopes instead of inventing commercial responses.
+
+All four concern persisted SQL configuration. Reads preserve native order;
+SET placement affects global class evaluation and must respect preceding class
+dependencies and compatible server associations. DEL can remove a class and
+must not be treated as association-only removal. They do not establish consumer
+activation; native pull/reload/restart is a separate operator action. Project
+commands expose one selected view, refuse existing mutation and accept only an
+explicit empty predecessor for fresh append.
+
 ## M29 scoped options
 
 M29 is **PARTIAL**. Twelve project-specific scoped-option callouts provide

@@ -1,5 +1,22 @@
 # Commercial command compatibility matrix
 
+## M30 client classes
+
+M30 is **PARTIAL**. Four project-specific `cb-client-class4-list/get/set/del`
+callouts add ordered native reads and guarded append-only fresh creation.
+Existing updates/deletes, insertion/reordering, templates and class-local
+definitions remain unsupported. Missing deletion returns result 3 without a
+write. Expression parsing is native; SQL persistence never requests activation.
+Complete associations and consumer dependencies remain unavailable.
+See [contracts](commands.md) and the [dependency backlog](dependency-safety-backlog.md).
+
+Functional coverage is **3 implemented, 24 partial, 47 missing** of 74:
+DHCPv4 3/24/9; DHCPv6 0/0/38. The three new partial analogues are class list,
+get and create-only set. Existing-class delete remains missing functionality
+despite its safe refusal endpoint. There are **41 registered project commands**.
+Exact commercial compatibility remains **0 implemented, 0 partial, 74 missing**.
+Earlier counts below are historical. Production readiness remains **NO-GO**.
+
 ## M29 scoped options
 
 M29 is **PARTIAL**. Twelve project-specific scoped-option callouts provide
@@ -328,10 +345,10 @@ dependencies, validation and create/replace/delete semantics.
 
 | Exact command / pinned contract | Family | Profile; request selector | Success arguments | Native API entry point | Current functional status; remaining work |
 | --- | --- | --- | --- | --- | --- |
-| [`remote-class4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class4-del.json) | v4 | CL; N | `count` | `deleteClientClass4` | Missing: schema, native handler and qualification; U3/U4 |
-| [`remote-class4-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class4-get-all.json) | v4 | CL; L | `client-classes`, `count` | `getAllClientClasses4` | Missing: schema, native handler and qualification; U3/U4 |
-| [`remote-class4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class4-get.json) | v4 | CL; N | `client-classes`, `count` | `getClientClass4` | Missing: schema, native handler and qualification; U3/U4 |
-| [`remote-class4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class4-set.json) | v4 | CL; W | `client-classes` | `createUpdateClientClass4` | Missing: schema, native handler and qualification; U3/U4 |
+| [`remote-class4-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class4-del.json) | v4 | CL; N | `count` | `deleteClientClass4` | Missing: existing delete refused; safe missing endpoint only; U3/U4 |
+| [`remote-class4-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class4-get-all.json) | v4 | CL; L | `client-classes`, `count` | `getAllClientClasses4` | Partial: project selected ordered native reads; U3/U4 |
+| [`remote-class4-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class4-get.json) | v4 | CL; N | `client-classes`, `count` | `getClientClass4` | Partial: project selected ordered native reads; U3/U4 |
+| [`remote-class4-set`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class4-set.json) | v4 | CL; W | `client-classes` | `createUpdateClientClass4` | Partial: guarded project append-only creation; existing update refused; U3/U4 |
 | [`remote-class6-del`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class6-del.json) | v6 | CL; N | `count` | `deleteClientClass6` | Missing: schema, native handler and qualification; U3/U4 |
 | [`remote-class6-get-all`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class6-get-all.json) | v6 | CL; L | `client-classes`, `count` | `getAllClientClasses6` | Missing: schema, native handler and qualification; U3/U4 |
 | [`remote-class6-get`](https://github.com/isc-projects/kea/blob/1737462bc79276e3269304ea8cd3d1c03400e30d/src/share/api/remote-class6-get.json) | v6 | CL; N | `client-classes`, `count` | `getClientClass6` | Missing: schema, native handler and qualification; U3/U4 |

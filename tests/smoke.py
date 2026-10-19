@@ -31,6 +31,9 @@ OPTION_COMMANDS = tuple(
 SHARED_NETWORK_COMMANDS = tuple(
     f"cb-shared-network4-{operation}" for operation in ("list", "get", "set", "del")
 )
+CLASS_COMMANDS = tuple(
+    f"cb-client-class4-{operation}" for operation in ("list", "get", "set", "del")
+)
 ADMISSION_ERROR = {"result": 1, "text": (
     "Mutations are disabled; configure allow-mutations: true on the "
     "designated administrative writer.")}
@@ -57,6 +60,9 @@ def verify_denied(send):
             "code": 3, "space": "dhcp4"}},
         "cb-shared-network4-set": {"server-tag": "all", "shared-network": {"name": "test"}},
         "cb-shared-network4-del": {"server-tag": "all", "name": "test"},
+        "cb-client-class4-set": {"server-tag": "all", "follow-class-name": "",
+                                 "client-class": {"name": "test"}},
+        "cb-client-class4-del": {"server-tag": "all", "name": "test"},
     }
     for scope, parent in (
         ("network", {"shared-network-name": "test"}),
@@ -168,7 +174,7 @@ def verify_argument_contracts(send):
         ("cb-global-parameter4-del", {"server-tag": "all", "name": "authoritative"}),
     ):
         assert send(name, arguments) == backend_error, (name, arguments)
-    for name in RECORD_COMMANDS + OPTION_COMMANDS + SHARED_NETWORK_COMMANDS:
+    for name in RECORD_COMMANDS + OPTION_COMMANDS + SHARED_NETWORK_COMMANDS + CLASS_COMMANDS:
         for arguments in ([], False, 1, "invalid", {"unexpected": True}):
             assert send(name, arguments)["result"] == 1, (name, arguments)
     for family, field in (("option-def4", "option-def"), ("option4-global", "option")):
@@ -308,7 +314,7 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
             assert "cb-subnet4-set" in names
             assert not any(name.startswith("remote-") for name in names)
             if mutation_admission:
-                registered = RECORD_COMMANDS + OPTION_COMMANDS + SHARED_NETWORK_COMMANDS
+                registered = RECORD_COMMANDS + OPTION_COMMANDS + SHARED_NETWORK_COMMANDS + CLASS_COMMANDS
                 assert set(registered) <= set(names), names
                 verify_denied(send)
                 config["Dhcp4"]["hooks-libraries"][0]["parameters"] = {"allow-mutations": True}
@@ -351,7 +357,7 @@ def run_case(server, hook, directory, multithreading, *, mutation_admission=True
             require_success(send("config-reload"))
             assert "cb-subnet4-set" not in require_success(send("list-commands"))
             if mutation_admission:
-                for name in RECORD_COMMANDS + OPTION_COMMANDS + SHARED_NETWORK_COMMANDS:
+                for name in RECORD_COMMANDS + OPTION_COMMANDS + SHARED_NETWORK_COMMANDS + CLASS_COMMANDS:
                     assert name not in require_success(send("list-commands"))
                     assert send(name)["result"] == 2
             for name in ("cb-subnet4-get", "cb-subnet4-del"):

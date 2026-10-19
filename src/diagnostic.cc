@@ -86,6 +86,10 @@ DB_COMMANDS_EXPORT int load(isc::hooks::LibraryHandle& handle) {
         handle.registerCommandCallout("cb-shared-network4-get", kea_db_commands::sharedNetwork4Get);
         handle.registerCommandCallout("cb-shared-network4-set", kea_db_commands::sharedNetwork4Set);
         handle.registerCommandCallout("cb-shared-network4-del", kea_db_commands::sharedNetwork4Del);
+        handle.registerCommandCallout("cb-client-class4-list", clientClass4List);
+        handle.registerCommandCallout("cb-client-class4-get", clientClass4Get);
+        handle.registerCommandCallout("cb-client-class4-set", clientClass4Set);
+        handle.registerCommandCallout("cb-client-class4-del", clientClass4Del);
         handle.registerCommandCallout("cb-option-def4-list", optionDef4List);
         handle.registerCommandCallout("cb-option-def4-get", optionDef4Get);
         handle.registerCommandCallout("cb-option-def4-set", optionDef4Set);

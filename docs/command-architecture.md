@@ -9,7 +9,7 @@ families remain proposals until their implementation milestones. The
 ## Current architecture
 
 One CMake MODULE exports the Kea lifecycle functions. `src/diagnostic.cc`
-registers thirty-seven IPv4-only commands; `commands.cc` retains command-specific replies
+registers forty-one IPv4-only commands; `commands.cc` retains command-specific replies
 and explicit mutation admission. Header-only `command_support.h` shares request
 extraction, required/optional field checks, safe errors and response publication.
 `backend_support.h` shares typed per-invocation manager access, single-backend
@@ -29,6 +29,17 @@ builder and common replies cannot implement the full commercial interface.
 Keep this architecture. Add small shared command support and typed,
 family-specific handlers as their milestones arrive. Do not build a generic
 SQL layer, configuration store, controller service or universal CRUD framework.
+
+## M30 client-class handler
+
+`client_classes4.cc` owns four callouts, reusing M24 request/response/backend
+helpers and the selected native option encoder. It constructs native classes
+through ClientClassDefParser and derives member references with ExpressionParser.
+Reads retain the dictionary's ordered vector. One explicit empty predecessor
+appends a fresh globally absent name. Runtime/native consumer inspection precedes
+the sole native write. This is an exclusive-writer preflight, not an atomic
+dependency snapshot. Existing upsert/delete and insertion never reach a native
+mutation. No generic store, direct SQL, retries or activation is added.
 
 ## M29 scoped-option handlers
 

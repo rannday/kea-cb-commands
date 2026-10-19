@@ -26,9 +26,16 @@ subnets and pools. Existing option updates/deletes remain refused because native
 readback omits association joins. Pool creation requires backend-wide range
 uniqueness. Parent replacement is never used. See [contracts](commands.md).
 
-**Next: M30 — DHCPv4 client classes.** Reuse shared command/option helpers;
-establish native ordering, dependency and association evidence before writes.
-Do not make commercial aliases until request/response behavior is qualified.
+**M30 implementation: PARTIAL.** Four client-class callouts provide native
+ordered reads and guarded explicit append-only creation. Native expressions,
+preceding references, class options, boot/lifetime fields and additional-only
+evaluation are supported within the documented contract. Existing update/delete
+and insertion remain refused. Production readiness remains NO-GO.
+
+**Recommended M31 qualification:** complete association/consumer inventories,
+atomic revision preconditions and exclusive-writer/recovery evidence before
+existing class mutations; qualify template/offer-lifetime roundtrip and exact
+commercial schemas separately. This recommendation authorizes no new work.
 
 Outstanding server deletion, global/option replacement/deletion and compound
 globals remain explicit functional gaps with evidence requirements in the
