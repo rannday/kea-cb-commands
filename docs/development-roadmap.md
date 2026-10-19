@@ -3,16 +3,20 @@
 **M31 qualification:** the [DHCPv4 audit](dhcp4-qualification.md) freezes 41
 commands and reconciles functional coverage at 3 implemented / 24 partial /
 47 missing; exact commercial interfaces remain 0/74. No feature or safety guard
-changes. [Execution evidence](../build/milestone31/checks.md) records the current
+changes. [Execution evidence](../build/milestone31/checks.md) records that milestone's
 matrix and quality results. Production remains NO-GO.
 
-**Recommended M32:** first qualify complete assigned-association reconstruction
-with native IDs/selectors and disposable SQL evidence, then investigate bounded
-existing scoped-option mutation under exact parent/class identity and enforced
-exclusive writer ownership. Preserve all current refusals until the proof is
-complete. See the [prioritized plan](dhcp4-remediation-plan.md), including test
-requirements, compatibility effects and upstream dependencies. Defer DHCPv6.
-This recommendation authorizes no M32 implementation.
+**M32 scoped-option qualification:** native parent reads cannot reconstruct
+option-server links. Subnet and shared-network existing option updates/deletes
+remain refused; zero mutations are unlocked. See [the native findings and
+bounded preconditions](scoped-option-mutation-safety.md) and
+[execution evidence](../build/milestone32/checks.md). Counts and production
+NO-GO are unchanged.
+
+**Recommended M33:** qualify F1 separately for global records whose native
+readers expose links, and design complete scoped association/identity evidence
+before revisiting scoped mutations. Include exact class predicates and writer/
+recovery guarantees. Defer DHCPv6; this recommendation authorizes no new work.
 
 **M27 implementation: PARTIAL.** Four project-specific shared-network callouts
 add native list/get, explicit ANY membership evidence and guarded fresh creation.

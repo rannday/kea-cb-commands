@@ -170,6 +170,21 @@ silently unlock these cases through a richer parser alone. Consumer runtime
 observability and writer recovery remain a separate qualification workstream;
 M22's incomplete exact-equivalence evidence must remain visible.
 
+## M32 scoped association finding
+
+[Both-driver investigation](scoped-option-mutation-safety.md) establishes that
+scoped parent reads ignore option-server links. Enumerating every native server
+selector cannot reconstruct these links; a sole-associated parent is insufficient
+for existing option mutations. B3 therefore retains an additional read-only
+evidence gate, independently of D1's race window. F1 global-record reconstruction
+is a separate unqualified hypothesis; E1 pool identity remains unresolved.
+
+Scoped ANY creation produces no option-server links and options are visible
+through their parents. Disposable fixtures distinguish seven physical link sets
+with identical native option observations and verify SET/DEL refusal against
+full SQL/audit snapshots and active configuration. No option mutation guard,
+server deletion, recovery hold or activation policy changes.
+
 ## M29 scoped-option findings and remaining gates
 
 Native scoped creation operates independently of parent replacement. The

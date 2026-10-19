@@ -198,6 +198,74 @@ def verify_scoped_options(send, snapshot, sql, config, save):
     checked("network", "set", {"code": 12, "space": "dhcp4", "data": "wrong-owner"},
             parent=common, result=1)
 
+    # M32: compare native observations of physically different ownership states.
+    # Parent selectors filter the parent, not its child option-server links.
+    def association_probe(scope, parent, owner):
+        clause = ("scope_id=4 AND shared_network_name='" +
+                  parent["shared-network-name"] + "'" if scope == "network" else
+                  f"scope_id=1 AND dhcp4_subnet_id={parent['subnet-id']}")
+        clause += " AND code=15 AND space='dhcp4'"
+        ids = f"SELECT option_id FROM dhcp4_options WHERE {clause}"
+        tags_query = (
+            "SELECT s.tag FROM dhcp4_options_server os "
+            "JOIN dhcp4_server s ON s.id=os.server_id "
+            f"WHERE os.option_id IN ({ids}) ORDER BY s.tag")
+        original_tags = sql(tags_query).decode().splitlines()
+        # Scoped creation uses ANY: ownership is through the parent and the
+        # native insert creates no option-server links. Probe independent links
+        # without assuming that parent tags were copied onto the option.
+        assert original_tags == [], original_tags
+        selectors = ("all", TAG, "m25-server") if owner == "all" else (TAG,)
+        observed = {tag: checked(scope, "get", key, parent=parent, tag=tag)
+                    for tag in selectors}
+        active = require_success(send("config-get"))
+        for links in ((), ("all",), (TAG,), ("m25-server",),
+                      (TAG, "m25-server"), ("all", TAG),
+                      ("all", TAG, "m25-server")):
+            statements = f"DELETE FROM dhcp4_options_server WHERE option_id IN ({ids})"
+            if links:
+                names = ", ".join(f"'{tag}'" for tag in links)
+                statements += (
+                    "; INSERT INTO dhcp4_options_server "
+                    "(option_id,server_id,modification_ts) "
+                    f"SELECT o.option_id,s.id,CURRENT_TIMESTAMP FROM dhcp4_options o "
+                    f"CROSS JOIN dhcp4_server s WHERE {clause} AND s.tag IN ({names})")
+            diagnostic(statements)
+            assert sql(tags_query).decode().splitlines() == sorted(links), links
+            for tag in selectors:
+                assert checked(scope, "get", key, parent=parent, tag=tag) == observed[tag]
+                for operation in ("set", "del"):
+                    payload = dict(key, data="m32-refused") if operation == "set" else key
+                    checked(scope, operation, payload, parent=parent, tag=tag, result=1)
+            assert require_success(send("config-get")) == active
+        diagnostic(f"DELETE FROM dhcp4_options_server WHERE option_id IN ({ids})")
+        assert sql(tags_query).decode().splitlines() == original_tags
+
+    common_subnet = {"subnet-id": 982}
+    require_success(send("cb-subnet4-set", {"server-tag": "all", "subnet4": {
+        "id": 982, "subnet": "198.19.82.0/24", "valid-lifetime": 900}}))
+    create("subnet", dict(key, data="m32-common.example"), tag="all", parent=common_subnet)
+    for scope in ("subnet", "network"):
+        association_probe(scope, PARENTS[scope], TAG)
+        association_probe(scope, common_subnet if scope == "subnet" else common, "all")
+
+    # Parent tags are independently visible, unlike option tags. Exercise mixed
+    # common/named parent ownership and verify both SET and DEL remain fail-closed.
+    diagnostic(
+        "INSERT INTO dhcp4_subnet_server (subnet_id,server_id,modification_ts) "
+        "SELECT 982,id,CURRENT_TIMESTAMP FROM dhcp4_server WHERE tag='m25-server'")
+    assert checked("subnet", "get", key, parent=common_subnet)["parent-server-tags"] == [
+        "all", "m25-server"]
+    for operation in ("set", "del"):
+        payload = dict(key, data="m32-refused") if operation == "set" else key
+        checked("subnet", operation, payload, parent=common_subnet, tag="all", result=1)
+    diagnostic(
+        "DELETE FROM dhcp4_subnet_server WHERE subnet_id=982 AND server_id IN "
+        "(SELECT id FROM dhcp4_server WHERE tag='m25-server')")
+    print("PASS: M32 subnet/network native views cannot distinguish seven option "
+          "association sets under named/common parents; SQL confirms exact links; "
+          "repeated SET/DEL refusals preserve full SQL/audit and active configuration")
+
     # Hidden parent/option links: diagnostic SQL creates evidence native option
     # readback cannot expose; no mutating command may treat it as sole ownership.
     diagnostic(

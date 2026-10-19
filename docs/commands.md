@@ -1,5 +1,12 @@
 # DHCPv4 configuration commands
 
+M32 leaves every command contract unchanged. Existing subnet/network scoped
+option SET/DEL remain refused: native parent selectors do not expose option
+server links. `associations-complete: false` describes option evidence;
+`parent-server-tags` describes only the parent. Missing deletion remains result
+3 without mutation. See [scoped-option safety](scoped-option-mutation-safety.md)
+for exact native identity, selector and concurrency findings.
+
 ## M30: DHCPv4 client classes
 
 Four project-specific commands use the pinned Kea 3.2.1 native backend. No

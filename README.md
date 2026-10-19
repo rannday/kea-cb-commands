@@ -1,5 +1,9 @@
 # Kea Database Commands
 
+M32 qualifies scoped-option association visibility with **41 commands** and no
+new existing-record mutations. See [scoped-option safety](docs/scoped-option-mutation-safety.md)
+and [M32 verification](build/milestone32/checks.md).
+
 M31 audits the existing **41 commands** without adding production behavior.
 See the [DHCPv4 qualification](docs/dhcp4-qualification.md) and
 [prioritized remediation plan](docs/dhcp4-remediation-plan.md).

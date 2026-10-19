@@ -10,7 +10,22 @@ small means bounded tooling/docs; medium means one family with both-engine
 fixtures; large means cross-family semantics, recovery or external coordination.
 All implementation milestones need their own review and acceptance.
 
-## Recommended M32 — bounded native mutation feasibility
+## M32 result and recommended M33
+
+M32's [scoped-option qualification](scoped-option-mutation-safety.md) resolves
+the scoped reconstruction question negatively: parent reads cannot reveal child
+option-server links. No existing mutations are enabled. Its authorized acceptance
+allows PASS with a conclusive negative result and passing regressions; the older
+recommendation to report PARTIAL merely because no mutation is unlocked is
+superseded. See [execution evidence](../build/milestone32/checks.md).
+
+M33 should qualify F1 for global records separately and design a supported scoped
+association read facility, unique target identity and exact class predicates.
+Retain D1's exclusion/recovery requirements. A read facility or upstream proposal
+is a prerequisite to reconsidering B3; sole parent ownership alone is insufficient.
+Do not begin DHCPv6 or authorize implementation from this recommendation.
+
+## Historical M31 recommendation for M32
 
 Keep the production command surface unchanged. First qualify read-only assigned
 association reconstruction and exact scoped-option identity; then implement

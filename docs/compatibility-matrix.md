@@ -1,5 +1,14 @@
 # Commercial command compatibility matrix
 
+## M32 scoped-option qualification
+
+[Association reconstruction](scoped-option-mutation-safety.md) cannot establish
+complete scoped-option server links from native parent reads. Existing subnet
+and network option updates/deletes remain refused; no commands or aliases are
+added. Functional counts remain **3 implemented / 24 partial / 47 missing**;
+exact compatibility remains **0/74**. See [M32 evidence](../build/milestone32/checks.md).
+Production readiness remains **NO-GO**.
+
 ## M31 DHCPv4 qualification
 
 The [qualification audit](dhcp4-qualification.md) freezes **41 registered commands**

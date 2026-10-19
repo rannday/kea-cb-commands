@@ -7,6 +7,16 @@ Execution results are recorded in [M31 checks](../build/milestone31/checks.md).
 The [remediation plan](dhcp4-remediation-plan.md) separates qualification from
 implementation and deployment work.
 
+## M32 scoped-option follow-up
+
+[M32](scoped-option-mutation-safety.md) independently investigates subnet and
+network option update/delete. Parent selectors cannot reconstruct child option
+links; complete ownership remains unavailable, so all four existing-record
+mutations stay refused. B3 needs additional read-only evidence, D1 remains,
+and F1's global-record proposal is still separate. The historical twelve-blocker
+classification and 41-command inventory below are retained. No functional or
+exact coverage count changes; production remains NO-GO.
+
 ## Baseline and inventory
 
 The audited baseline is `d376d3a448c5541a9d43c87fd87a8b7a385dc165` on
