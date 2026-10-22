@@ -1,16 +1,25 @@
 # Development roadmap: commercial command parity
 
+**M33 qualification: PARTIAL.** Native targeting and association findings,
+disposable preservation fixtures and scoped-fixture typing cleanup are recorded
+in execution evidence (local report: `build/milestone33/checks.md`). Global existing-record
+mutations remain refused. Complete all-scope consumer/encoding evidence,
+unassigned reconstruction and family-specific recovery qualification remain open.
+Recommended M34 is bounded read-only qualification and review of the
+[native API proposal](native-api-improvement-proposal.md), before mutation
+expansion or DHCPv6. This recommendation authorizes no new work.
+
 **M31 qualification:** the [DHCPv4 audit](dhcp4-qualification.md) freezes 41
 commands and reconciles functional coverage at 3 implemented / 24 partial /
 47 missing; exact commercial interfaces remain 0/74. No feature or safety guard
-changes. [Execution evidence](../build/milestone31/checks.md) records that milestone's
+changes. Execution evidence (local report: `build/milestone31/checks.md`) records that milestone's
 matrix and quality results. Production remains NO-GO.
 
 **M32 scoped-option qualification:** native parent reads cannot reconstruct
 option-server links. Subnet and shared-network existing option updates/deletes
 remain refused; zero mutations are unlocked. See [the native findings and
 bounded preconditions](scoped-option-mutation-safety.md) and
-[execution evidence](../build/milestone32/checks.md). Counts and production
+execution evidence (local report: `build/milestone32/checks.md`). Counts and production
 NO-GO are unchanged.
 
 **Recommended M33:** qualify F1 separately for global records whose native

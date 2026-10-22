@@ -1,11 +1,16 @@
 # M32: DHCPv4 scoped-option mutation safety
 
+M33 adds a [native API improvement proposal](native-api-improvement-proposal.md)
+for complete association enumeration, exact physical identity, dependency
+visibility and atomic preconditions. These contracts are unimplemented;
+existing scoped-option refusals and M32 findings remain unchanged.
+
 Production readiness remains **NO-GO**. M32 enables **zero existing-record
 mutations**. Subnet and shared-network option updates and deletes remain refused.
 This is a bounded negative qualification: supported native reads cannot establish
 the necessary option ownership, even under a sole-associated parent. Existing
 fresh creation, reads and missing-record deletion contracts are unchanged.
-See [execution evidence](../build/milestone32/checks.md), the
+See execution evidence (local report: `build/milestone32/checks.md`), the
 [M31 inventory](dhcp4-qualification.md) and [remediation plan](dhcp4-remediation-plan.md).
 
 ## Selected blockers and operations

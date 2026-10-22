@@ -1,12 +1,19 @@
 # Commercial parity gap analysis
 
+## M33 global-record investigation
+
+[Global-record safety](global-record-mutation-safety.md) preserves all existing
+mutation restrictions and 41 registered commands. Functional coverage remains
+**3 implemented / 24 partial / 47 missing**; exact compatibility remains **0/74**.
+No aliases or additional functional operations are counted. Production is **NO-GO**.
+
 ## M32 scoped-option qualification
 
 [Association reconstruction](scoped-option-mutation-safety.md) cannot establish
 complete scoped-option server links from native parent reads. Existing subnet
 and network option updates/deletes remain refused; no commands or aliases are
 added. Functional counts remain **3 implemented / 24 partial / 47 missing**;
-exact compatibility remains **0/74**. See [M32 evidence](../build/milestone32/checks.md).
+exact compatibility remains **0/74**. See M32 evidence (local report: `build/milestone32/checks.md`).
 Production readiness remains **NO-GO**.
 
 ## M31 DHCPv4 qualification
@@ -18,7 +25,7 @@ Refusal-only endpoints are not implemented mutations. The
 [remediation plan](dhcp4-remediation-plan.md) separates native API limitations,
 missing evidence, stricter preconditions and concurrency requirements.
 Production readiness remains **NO-GO**; execution evidence is in
-[the M31 checks](../build/milestone31/checks.md).
+the M31 checks (local report: `build/milestone31/checks.md`).
 
 ## M30 client classes
 

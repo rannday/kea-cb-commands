@@ -1,5 +1,10 @@
 # DHCPv4 configuration commands
 
+M33 preserves all 41 commands and existing global parameter, option-definition
+and global-option SET/DEL refusals. Selected tags do not establish complete
+physical-row ownership. See [global-record safety](global-record-mutation-safety.md)
+and the [native API proposal](native-api-improvement-proposal.md).
+
 M32 leaves every command contract unchanged. Existing subnet/network scoped
 option SET/DEL remain refused: native parent selectors do not expose option
 server links. `associations-complete: false` describes option evidence;

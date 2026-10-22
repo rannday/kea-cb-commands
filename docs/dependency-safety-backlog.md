@@ -1,5 +1,12 @@
 # Dependency safety backlog
 
+M33 investigates C1/C2/C3/D1/F1 in [global-record safety](global-record-mutation-safety.md).
+Global predicates retain tags but mutate physical rows; selected serialization
+still omits ownership. Global-option deletion additionally uses class LIKE
+matching. Definition deletion's non-force check covers selected global options,
+not all consumers. No classification or production guard changes; the
+[API proposal](native-api-improvement-proposal.md) specifies the missing contracts.
+
 M31 adds a [finite blocker ledger](dhcp4-qualification.md): **A 0, B 4, C 5,
 D 1, E 1, F 1** primary classifications across 12 issues. The concurrency issue
 also applies across families. Existing refusal is not proof of an upstream API

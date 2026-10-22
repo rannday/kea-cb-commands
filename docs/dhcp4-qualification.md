@@ -1,9 +1,15 @@
 # DHCPv4 qualification through Milestone 30
 
+M33's [global-record investigation](global-record-mutation-safety.md) extends
+association and targeting evidence for scalar globals, global options and
+definitions. No mutation is enabled. The historical inventory, coverage counts
+and blocker categories below remain unchanged. Full cross-family reconstruction
+and all-scope dependency completeness remain unqualified.
+
 M31 qualifies the existing interface against ISC Kea 3.2.1 commit
 `1737462bc79276e3269304ea8cd3d1c03400e30d`. It introduces no production
 command, alias or mutation capability. Production readiness remains **NO-GO**.
-Execution results are recorded in [M31 checks](../build/milestone31/checks.md).
+Execution results are recorded in M31 checks (local report: `build/milestone31/checks.md`).
 The [remediation plan](dhcp4-remediation-plan.md) separates qualification from
 implementation and deployment work.
 

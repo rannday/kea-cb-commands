@@ -1,5 +1,14 @@
 # DHCPv4 remediation plan after M31
 
+## M33 follow-up
+
+[Global-record findings](global-record-mutation-safety.md) preserve existing
+refusals. Prioritize complete physical-row ownership and all-scope definition
+consumers before any mutation implementation. The [native API specification](native-api-improvement-proposal.md)
+requires exact identity and atomic expected-state guards separately. Recommended
+M34: close the remaining read-only reconstruction/dependency evidence gates and
+review the proposed backend contracts; defer DHCPv6 and mutation expansion.
+
 Production readiness remains **NO-GO**. Complete selected DHCPv4 remediation
 before starting DHCPv6. The [qualification](dhcp4-qualification.md) inventories
 41 endpoints, reconciles 74 commercial operations and classifies twelve safety
@@ -17,7 +26,7 @@ the scoped reconstruction question negatively: parent reads cannot reveal child
 option-server links. No existing mutations are enabled. Its authorized acceptance
 allows PASS with a conclusive negative result and passing regressions; the older
 recommendation to report PARTIAL merely because no mutation is unlocked is
-superseded. See [execution evidence](../build/milestone32/checks.md).
+superseded. See execution evidence (local report: `build/milestone32/checks.md`).
 
 M33 should qualify F1 for global records separately and design a supported scoped
 association read facility, unique target identity and exact class predicates.

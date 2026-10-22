@@ -2,6 +2,7 @@
 
 # SPDX-License-Identifier: MPL-2.0
 import copy
+from collections.abc import Callable, Mapping
 
 from mutation import configure_admission
 from smoke import ADMISSION_ERROR, require_success
@@ -21,11 +22,11 @@ def request(send, scope, operation, option=None, tag=TAG, parent=None):
     return send(f"cb-option4-{scope}-{operation}", args)
 
 
-def verify_scoped_options(send, snapshot, sql, config, save):
+def verify_scoped_options(send, snapshot, sql: Callable[[str], bytes], config, save):
     """Read/refusal snapshots include all persisted objects and audit rows."""
     backend = config["Dhcp4"]["config-control"]["config-databases"][0]["type"]
 
-    def diagnostic(statements):
+    def diagnostic(statements: str) -> None:
         prefix = (
             "BEGIN; SELECT createAuditRevisionDHCP4(CURRENT_TIMESTAMP, "
             "'all', 'M29 diagnostic fixture', false); "
@@ -33,7 +34,7 @@ def verify_scoped_options(send, snapshot, sql, config, save):
             "START TRANSACTION; CALL createAuditRevisionDHCP4(CURRENT_TIMESTAMP, "
             "'all', 'M29 diagnostic fixture', 0); "
         )
-        sql(prefix + statements + "; COMMIT")
+        _ = sql(prefix + statements + "; COMMIT")
 
     def checked(scope, operation, option=None, result=0, **kwargs):
         before = snapshot()
@@ -200,9 +201,9 @@ def verify_scoped_options(send, snapshot, sql, config, save):
 
     # M32: compare native observations of physically different ownership states.
     # Parent selectors filter the parent, not its child option-server links.
-    def association_probe(scope, parent, owner):
-        clause = ("scope_id=4 AND shared_network_name='" +
-                  parent["shared-network-name"] + "'" if scope == "network" else
+    def association_probe(scope: str, parent: Mapping[str, str | int], owner: str) -> None:
+        clause = (f"scope_id=4 AND shared_network_name='{parent['shared-network-name']}'"
+                  if scope == "network" else
                   f"scope_id=1 AND dhcp4_subnet_id={parent['subnet-id']}")
         clause += " AND code=15 AND space='dhcp4'"
         ids = f"SELECT option_id FROM dhcp4_options WHERE {clause}"
@@ -263,8 +264,8 @@ def verify_scoped_options(send, snapshot, sql, config, save):
         "DELETE FROM dhcp4_subnet_server WHERE subnet_id=982 AND server_id IN "
         "(SELECT id FROM dhcp4_server WHERE tag='m25-server')")
     print("PASS: M32 subnet/network native views cannot distinguish seven option "
-          "association sets under named/common parents; SQL confirms exact links; "
-          "repeated SET/DEL refusals preserve full SQL/audit and active configuration")
+          + "association sets under named/common parents; SQL confirms exact links; "
+          + "repeated SET/DEL refusals preserve full SQL/audit and active configuration")
 
     # Hidden parent/option links: diagnostic SQL creates evidence native option
     # readback cannot expose; no mutating command may treat it as sole ownership.

@@ -1,5 +1,10 @@
 # Production readiness review — Milestone 19 with M22 addendum
 
+M33 preserves **NO-GO**. [Global ownership and dependency findings](global-record-mutation-safety.md)
+do not establish safe existing-record writes. The [proposed native contracts](native-api-improvement-proposal.md)
+are unimplemented and carry no ISC acceptance claim. Exact targeting cannot
+replace fencing, durable recovery or independent activation/convergence evidence.
+
 **M31 qualification preserves production NO-GO.** The
 [DHCPv4 audit](dhcp4-qualification.md) covers all 41 registered commands,
 family-specific mutation restrictions and the M22 state/evidence gaps. Passing

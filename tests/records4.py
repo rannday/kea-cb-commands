@@ -111,10 +111,12 @@ def verify_records(send, snapshot, sql, config, save):
     set_parameter("boot-file-name", "m25-common", "all")
     assert parameter("boot-file-name")["value"] == "m25-scalar"
     assert parameter("boot-file-name", "all")["value"] == "m25-common"
+    runtime_before_refusal = require_success(send("config-get"))
     for tag in (TAG, "test-server", "all"):
         checked(GLOBAL + "set", {
             "server-tag": tag, "name": "boot-file-name", "value": "refused"}, 1)
         checked(GLOBAL + "del", {"server-tag": tag, "name": "boot-file-name"}, 1)
+    assert require_success(send("config-get")) == runtime_before_refusal
 
     # Diagnostic SQL is confined to disposable fixtures: make a shared native
     # row that ONE(tag) readback misrepresents as a single association.
@@ -133,6 +135,7 @@ def verify_records(send, snapshot, sql, config, save):
         checked(GLOBAL + "del", {"server-tag": tag, "name": "authoritative"}, 1)
 
     # A mixed common/named association is likewise hidden behind the all tag.
+    common_before_link = parameter("boot-file-name", "all")
     sql("INSERT INTO dhcp4_global_parameter_server "
         "(parameter_id, server_id, modification_ts) "
         "SELECT g.id, s.id, CURRENT_TIMESTAMP FROM dhcp4_global_parameter g "
@@ -140,11 +143,21 @@ def verify_records(send, snapshot, sql, config, save):
         "JOIN dhcp4_server owner ON gs.server_id=owner.id "
         "JOIN dhcp4_server s ON s.tag='test-server' "
         "WHERE owner.tag='all' AND g.name='boot-file-name'")
+    assert parameter("boot-file-name", "all") == common_before_link
+    assert int(sql("SELECT COUNT(*) FROM dhcp4_global_parameter g "
+                   "JOIN dhcp4_global_parameter_server common "
+                   "ON g.id=common.parameter_id "
+                   "JOIN dhcp4_server all_server ON common.server_id=all_server.id "
+                   "JOIN dhcp4_global_parameter_server linked "
+                   "ON g.id=linked.parameter_id "
+                   "WHERE all_server.tag='all' AND g.name='boot-file-name'")) == 2
     assert parameter("boot-file-name", "test-server")["server-tags"] == ["all"]
+    runtime_before_refusal = require_success(send("config-get"))
     for tag in ("all", "test-server"):
         checked(GLOBAL + "set", {
             "server-tag": tag, "name": "boot-file-name", "value": "refused"}, 1)
         checked(GLOBAL + "del", {"server-tag": tag, "name": "boot-file-name"}, 1)
+    assert require_success(send("config-get")) == runtime_before_refusal
 
     # Existing-record deletion is deliberately excluded: native deletion also
     # purges orphan globals/options/definitions. Neither association may change.

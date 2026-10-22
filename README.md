@@ -1,14 +1,20 @@
 # Kea Database Commands
 
+M33 is **PARTIAL**: global-record association and targeting findings preserve
+all existing mutation guards. Complete dependency/reconstruction qualification
+remains open. See [global-record findings](docs/global-record-mutation-safety.md),
+the [native API proposal](docs/native-api-improvement-proposal.md) and
+verification evidence (local report: `build/milestone33/checks.md`).
+
 M32 qualifies scoped-option association visibility with **41 commands** and no
 new existing-record mutations. See [scoped-option safety](docs/scoped-option-mutation-safety.md)
-and [M32 verification](build/milestone32/checks.md).
+and M32 verification (local report: `build/milestone32/checks.md`).
 
 M31 audits the existing **41 commands** without adding production behavior.
 See the [DHCPv4 qualification](docs/dhcp4-qualification.md) and
 [prioritized remediation plan](docs/dhcp4-remediation-plan.md).
 Production readiness remains **NO-GO**; complete selected DHCPv4 safety work
-before starting DHCPv6. [M31 verification](build/milestone31/checks.md)
+before starting DHCPv6. M31 verification (local report: `build/milestone31/checks.md`)
 records the current execution results.
 
 An independent MPL-2.0 C++14 hook for managing DHCPv4 subnets, server records,

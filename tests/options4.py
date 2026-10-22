@@ -140,6 +140,63 @@ def verify_options(send, snapshot, sql, config, save):
         for tag in ("all", TAG, "m25-server"):
             checked(prefix, "del", key, tag, result=1)
 
+    # Isolated common-only rows keep a prior named association from shadowing
+    # the native observation used to verify an additional link.
+    common_def = {
+        "name": "m26-mixed-common", "code": 242, "space": "m26", "type": "string"}
+    linked_def = {
+        "name": "m26-mixed-option", "code": 243, "space": "m26", "type": "uint8"}
+    common_option = {
+        "code": 243, "space": "m26", "data": "03", "csv-format": False}
+    create(DEF, common_def, "all")
+    create(DEF, linked_def, "all")
+    create(OPT, common_option, "all")
+
+    # Add a named link to each common-only row; prove both selected views
+    # remain unchanged and the incomplete native read exposes one association.
+    for prefix, table, foreign, primary, code, update in (
+        (DEF, "option_def", "option_def_id", "id", 242, {
+            "name": "m26-mixed-common", "code": 242, "space": "m26", "type": "string"}),
+        (OPT, "options", "option_id", "option_id", 243, {
+            "code": 243, "space": "m26", "data": "03", "csv-format": False}),
+    ):
+        key = {"code": code, "space": "m26"}
+        common_before = checked(prefix, "get", key, "all")
+        named_before = request(prefix, "get", key, TAG)
+        sql(f"INSERT INTO dhcp4_{table}_server "
+            f"({foreign}, server_id, modification_ts) "
+            f"SELECT o.{primary}, named.id, CURRENT_TIMESTAMP "
+            f"FROM dhcp4_{table} o "
+            f"JOIN dhcp4_{table}_server common "
+            f"ON common.{foreign}=o.{primary} "
+            "JOIN dhcp4_server all_server ON common.server_id=all_server.id "
+            "JOIN dhcp4_server named ON named.tag='test-server' "
+            f"WHERE all_server.tag='all' AND o.code={code} AND o.space='m26'")
+        assert int(sql(f"SELECT COUNT(*) FROM dhcp4_{table} o "
+                       f"JOIN dhcp4_{table}_server common "
+                       f"ON common.{foreign}=o.{primary} "
+                       "JOIN dhcp4_server all_server "
+                       "ON common.server_id=all_server.id "
+                       f"JOIN dhcp4_{table}_server linked "
+                       f"ON linked.{foreign}=o.{primary} "
+                       f"WHERE all_server.tag='all' AND o.code={code} "
+                       "AND o.space='m26'")) == 2
+        assert checked(prefix, "get", key, "all") == common_before
+        assert request(prefix, "get", key, TAG) == named_before
+
+        runtime_before_refusal = require_success(send("config-get"))
+        for tag in ("all", TAG):
+            rows = checked(prefix, "get", key, tag)
+            row = rows["option-defs" if prefix == DEF else "options"][0]
+            assert rows["associations-complete"] is False, rows
+            assert len(row["server-tags"]) == 1, row
+            for operation, obj in (("set", update), ("del", key)):
+                before = snapshot()
+                response = request(prefix, operation, obj, tag)
+                assert response["result"] == 1, response
+                assert snapshot() == before, (prefix, operation, "SQL/audit changed")
+                assert require_success(send("config-get")) == runtime_before_refusal
+
     # Diagnostic SQL only: native ONE readback hides these extra associations.
     for table, foreign, code in (("option_def", "option_def_id", 224),
                                   ("options", "option_id", 224)):
